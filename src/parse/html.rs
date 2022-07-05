@@ -31,17 +31,17 @@ enum HtmlToken {
 
 static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&[
-        r#"(?:<!DOCTYPE\s+(?<doctype>[^>]+)>)"#,
-        r#"(?:<!--(?<comment>-?[^-]+|--[^>])*-->)"#,
-        r#"(?<left><)"#,
-        r#"(?<closing><\/)"#,
-        r#"(?<selfclosing>\/\s*>)"#,
-        r#"(?<right>>)"#,
-        r#"(?<eq>=)"#,
-        r#"(?<doublequoted>"[^"]+")"#,
-        r#"(?<singlequoted>'[^']+')"#,
-        r#"(?<white>\s+)"#,
-        r#"(?<text>[^<>\/=]+)"#,
+        r#"(?:<!DOCTYPE\s+(?P<doctype>[^>]+)>)"#,
+        r#"(?:<!--(?P<comment>-?[^-]+|--[^>])*-->)"#,
+        r#"(?P<left><)"#,
+        r#"(?P<closing></)"#,
+        r#"(?P<selfclosing>/\s*>)"#,
+        r#"(?P<right>>)"#,
+        r#"(?P<eq>=)"#,
+        r#"(?P<doublequoted>"[^"]+")"#,
+        r#"(?P<singlequoted>'[^']+')"#,
+        r#"(?P<white>\s+)"#,
+        r#"(?P<text>[^<>/=]+)"#,
     ].join("|")).unwrap()
 });
 
@@ -49,26 +49,26 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
 fn lex_document(raw: &str) -> Vec<HtmlToken> {
     let mut tokens = Vec::new();
     for raw_token in HTML_LEXER.captures_iter(raw) {
-        if let Some(doctype) = none_if_empty(&raw_token["doctype"]) {
-            tokens.push(HtmlToken::Doctype(doctype.to_owned()));
-        } else if let Some(comment) = none_if_empty(&raw_token["comment"]) {
-            tokens.push(HtmlToken::Comment(comment.to_owned()));
-        } else if !raw_token["left"].is_empty() {
+        if let Some(doctype) = raw_token.name("doctype") {
+            tokens.push(HtmlToken::Doctype(doctype.as_str().to_owned()));
+        } else if let Some(comment) = raw_token.name("comment") {
+            tokens.push(HtmlToken::Comment(comment.as_str().to_owned()));
+        } else if raw_token.name("left").is_some() {
             tokens.push(HtmlToken::Left);
-        } else if !raw_token["closing"].is_empty() {
+        } else if raw_token.name("closing").is_some() {
             tokens.push(HtmlToken::Closing);
-        } else if !raw_token["selfclosing"].is_empty() {
+        } else if raw_token.name("selfclosing").is_some() {
             tokens.push(HtmlToken::SelfClosing);
-        } else if !raw_token["right"].is_empty() {
+        } else if raw_token.name("right").is_some() {
             tokens.push(HtmlToken::Right);
-        } else if !raw_token["eq"].is_empty() {
+        } else if raw_token.name("eq").is_some() {
             tokens.push(HtmlToken::Eq);
-        } else if let Some(quoted) = none_if_empty(&raw_token["doublequoted"]).or_else(|| none_if_empty(&raw_token["singlequoted"])) {
-            tokens.push(HtmlToken::Quoted(quoted.to_owned()));
-        } else if !raw_token["white"].is_empty() {
+        } else if let Some(quoted) = raw_token.name("doublequoted").or_else(|| raw_token.name("singlequoted")) {
+            tokens.push(HtmlToken::Quoted(quoted.as_str().to_owned()));
+        } else if raw_token.name("white").is_some() {
             // We skip whitespace
-        } else if let Some(text) = none_if_empty(&raw_token["text"]) {
-            tokens.push(HtmlToken::Text(text.to_owned()));
+        } else if let Some(text) = raw_token.name("text") {
+            tokens.push(HtmlToken::Text(text.as_str().to_owned()));
         }
     }
     tokens
