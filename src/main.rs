@@ -3,6 +3,7 @@ mod dom;
 mod error;
 mod parse;
 mod network;
+mod util;
 
 use std::sync::Arc;
 

@@ -5,6 +5,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     Reqwest(String),
+    Eof,
 }
 
 impl From<reqwest::Error> for Error {
