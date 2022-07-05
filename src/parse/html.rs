@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -80,6 +80,29 @@ struct Opening {
     self_closing: bool,
 }
 
+static SINGLETON_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
+    let mut set = HashSet::new();
+    set.insert("area");
+    set.insert("base");
+    set.insert("br");
+    set.insert("col");
+    set.insert("command");
+    set.insert("embed");
+    set.insert("hr");
+    set.insert("img");
+    set.insert("input");
+    set.insert("keygen");
+    set.insert("link");
+    set.insert("meta");
+    set.insert("param");
+    set.insert("source");
+    set.insert("track");
+    set.insert("wbr");
+    set
+});
+
+// A recursive descent parser for HTML.
+
 impl HtmlParser {
     /// Parses an HTML document.
     pub fn parse(&self, raw: &str) -> Result<Document> {
@@ -88,18 +111,45 @@ impl HtmlParser {
     }
 
     fn parse_document(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Document> {
-        // TODO
-        Ok(Document::new())
+        let mut doc = Document::new();
+
+        if let HtmlToken::Doctype(_) = tokens.peek()? {
+            // Ignore doctype for now
+            tokens.next()?;
+        }
+
+        // Parse <html> ... </html>
+        doc.root_mut().add_child(self.parse_node(tokens)?);
+
+        Ok(doc)
     }
 
     /// Parse an element or simply text (between tags).
-    fn parse_node(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Document> {
-        // TODO
+    fn parse_node(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Node> {
+        if let HtmlToken::Text(txt) = tokens.peek()? {
+            Ok(Node::Text(txt.clone()))
+        } else {
+            Ok(Node::Element(self.parse_element(tokens)?))
+        }
     }
 
     /// Parse `<tag> ... </tag>` (or only the opening tag for some tags)
     fn parse_element(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Element> {
-        // TODO
+        let opening = self.parse_opening(tokens)?;
+        let mut children = Vec::new();
+
+        if !opening.self_closing && !SINGLETON_TAGS.contains(opening.tag_name.as_str()) {
+            while tokens.peek()? != &HtmlToken::Closing {
+                let child = self.parse_node(tokens)?;
+                children.push(child);
+            }
+
+            tokens.expect(&HtmlToken::Closing)?;
+            tokens.expect(&HtmlToken::Text(opening.tag_name.clone()))?;
+            tokens.expect(&HtmlToken::Right)?;
+        }
+
+        Ok(Element::new(opening.tag_name, opening.attributes, children))
     }
 
     /// Parse `<tag attr="value" ...>`
@@ -131,14 +181,14 @@ impl HtmlParser {
     /// Parse `attr="value"`
     fn parse_attribute(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Option<(String, String)>> {
         let token = tokens.peek()?;
-        if let HtmlToken::Text(key) = token {
+        if let HtmlToken::Text(key) = token.clone() {
             tokens.next()?;
             tokens.expect(&HtmlToken::Eq)?;
             let value = match tokens.next()? {
                 HtmlToken::Text(txt) | HtmlToken::Quoted(txt) => Ok(txt),
                 token => Err(Error::UnexpectedToken(format!("Expected attribute value but got {:?}", token))),
             }?;
-            Ok(Some((key.clone(), value)))
+            Ok(Some((key, value)))
         } else {
             Ok(None)
         }

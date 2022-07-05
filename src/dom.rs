@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 /// An HTML document.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Document {
@@ -5,11 +7,18 @@ pub struct Document {
 }
 
 impl Document {
+    /// Creates a new (empty) document.
     pub fn new() -> Self {
         Self {
             root: Element::tag("$root")
         }
     }
+
+    /// The root node.
+    pub fn root(&self) -> &Element { &self.root }
+
+    /// The root node, mutably.
+    pub fn root_mut(&mut self) -> &mut Element { &mut self.root }
 }
 
 /// A node in the DOM tree.
@@ -23,14 +32,21 @@ pub enum Node {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Element {
     tag: String,
+    attributes: HashMap<String, String>,
     children: Vec<Node>,
 }
 
 impl Element {
+    /// Creates a new element with the given tag name, attributes and children.
+    pub fn new(tag: String, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
+        Self { tag, attributes, children }
+    }
+
     /// Creates a new element with the given tag name.
     pub fn tag(tag: &str) -> Self {
         Self {
             tag: tag.to_owned(),
+            attributes: HashMap::new(),
             children: Vec::new(),
         }
     }
