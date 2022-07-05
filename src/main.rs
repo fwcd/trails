@@ -1,5 +1,7 @@
 mod constants;
+mod dom;
 mod error;
+mod parse;
 mod network;
 
 use std::sync::Arc;
