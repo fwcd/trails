@@ -1,6 +1,10 @@
+mod constants;
+mod error;
+mod network;
+
 use std::sync::Arc;
 
-use druid::{AppLauncher, WindowDesc, Widget, widget::{Label, Flex, TextBox}, WidgetExt, Data, Lens};
+use druid::{AppLauncher, WindowDesc, Widget, widget::{Flex, TextBox}, WidgetExt, Data, Lens};
 
 #[derive(Clone, Data, Lens)]
 struct AppState {
