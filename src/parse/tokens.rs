@@ -1,4 +1,4 @@
-use std::{vec::IntoIter, iter::Peekable};
+use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
 use crate::error::{Result, Error};
 
@@ -30,6 +30,29 @@ impl<T> Tokens<T> {
             Ok(token)
         } else {
             Err(Error::Eof)
+        }
+    }
+}
+
+impl<T> Tokens<T> where T: Eq + Debug {
+    /// Consumes a token by expecting one.
+    pub fn expect(&mut self, expected: &T) -> Result<()> {
+        let token = self.next()?;
+        if &token == expected {
+            Ok(())
+        } else {
+            Err(Error::UnexpectedToken(format!("Expected {:?}, but was {:?}", expected, token)))
+        }
+    }
+
+    /// Consumes a token if it matches, otherwise does nothing.
+    pub fn expect_optionally(&mut self, expected: &T) -> Result<bool> {
+        let token = self.peek()?;
+        if token == expected {
+            self.next()?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
     }
 }
