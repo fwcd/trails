@@ -3,29 +3,23 @@ mod dom;
 mod error;
 mod parse;
 mod network;
+mod ui;
+mod state;
 mod util;
 
 use std::sync::{Arc, Mutex};
 
-use dom::Document;
-use druid::{AppLauncher, WindowDesc, Widget, widget::{Flex, TextBox, Button, Label}, WidgetExt, Data, Lens, Env};
-use log::{LevelFilter, error};
+use druid::{WindowDesc, AppLauncher};
+use log::LevelFilter;
 use network::NetworkSession;
 use parse::HtmlParser;
 use simple_logger::SimpleLogger;
-
-#[derive(Clone, Data, Lens)]
-struct AppState {
-    url: Arc<String>,
-    parser: Arc<HtmlParser>,
-    session: Arc<Mutex<NetworkSession>>,
-    document: Option<Arc<Document>>,
-}
+use state::AppState;
 
 fn main() {
     SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-    let window = WindowDesc::new(build_ui)
+    let window = WindowDesc::new(ui::build)
         .title("Trails")
         .window_size((800.0, 600.0));
 
@@ -39,38 +33,4 @@ fn main() {
     AppLauncher::with_window(window)
         .launch(initial_state)
         .expect("Failed to launch app");
-}
-
-fn build_ui() -> impl Widget<AppState> {
-    Flex::column()
-        // Address bar
-        .with_child(
-            Flex::row()
-                .with_child(
-                    TextBox::new()
-                        .with_placeholder("Enter URL...")
-                        .lens(AppState::url)
-                        .fix_width(500.0)
-                )
-                .with_child(
-                    Button::new("Visit")
-                        .on_click(|_ctx, data: &mut AppState, _env| {
-                            let doc = data.session.lock().unwrap().get_text(data.url.as_str())
-                                .and_then(|raw| data.parser.parse(raw.as_str()));
-                            match doc {
-                                Ok(doc) => data.document = Some(Arc::new(doc)),
-                                Err(e) => error!("Error while fetching/parsing HTML: {:?}", e),
-                            };
-                        })
-                )
-                .padding(10.0)
-        )
-        // Content
-        .with_child(
-            Label::new(|data: &AppState, _env: &Env| {
-                // TODO: Actually render the doc in a meaningful way
-                let rendered = format!("{:#?}", data.document);
-                rendered
-            })
-        )
 }
