@@ -19,36 +19,36 @@ impl Default for HtmlParser {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum HtmlToken {
     Doctype(String), // <!DOCTYPE ...>
-    Comment(String), // <!-- ... -->
     Script(String), // <script> ... </script>
     Style(String), // <style> ... </style>
-    Left(String), // <tag
-    AttributeKey(String),
-    AttributeValue(String),
-    Closing, // </
-    SelfClosing, // />
-    Right, // >
+    Opening { tag_name: String, attributes: HashMap<String, String>, self_closing: bool }, // <tag attr="value">
+    Closing { tag_name: String }, // </tag>
     Text(String), // e.g. tag names, attribute names, values, ...
 }
 
-// TODO: Instead of parsing half-open tags etc. we should parse
-//       entire opening/self-closing/closing tags as single tokens
-//       and then apply a second parse for the attributes.
-
 static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&[
+        // Doctype, i.e. <!DOCTYPE ...>
         r#"(?:<![dD][oO][cC][tT][yY][pP][eE]\s+(?P<doctype>[^>]+)>)"#,
+        // Comments, i.e. <!-- ... -->
         r#"(?:<!--(?P<comment>-?[^-]+|--[^>])*-->)"#,
+        // Script tags, i.e. <script> ... </script>
         r#"(?:<\s*[sS][cC][rR][iI][pP][tT][^>]*>(?P<script>[\s\S]*?)</\s*[sS][cC][rR][iI][pP][tT]\s*>)"#,
+        // Style tags, i.e. <style> ... </style>
         r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
-        r#"(?:<\s*(?P<left>\w+)(?:\s*(?P<attribute>[^>]+)(?:=(?:"(?P<quoted>[^"]+)"|(?P<unquoted>\w+)))?)*)"#,
-        r#"(?P<closing></)"#,
-        r#"(?P<selfclosing>/\s*>)"#,
-        r#"(?P<right>>)"#,
-        r#"(?P<eq>=)"#,
+        // Opening/self-closing tags, e.g. <meta charset="utf-8" />
+        r#"(?:<\s*(?P<openingtag>\w+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|\w+))?)*)\s*(?P<selfclosing>/?)\s*>)"#,
+        // Closing tags, e.g. </html>
+        r#"(?:<\s*/\s*(?P<closingtag>\w+)\s*>)"#,
+        // Whitespace
         r#"(?P<white>\s+)"#,
-        r#"(?P<text>[^<>/=]+)"#,
+        // Any other text
+        r#"(?P<text>[^<]+)"#,
     ].join("|")).unwrap()
+});
+
+static ATTRIBUTE_LEXER: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?P<key>[\w\-]+)\s*(?:=\s*(?:"(?P<doublequoted>[^"]*)"|'(?P<singlequoted>[^']*)'|(?P<unquoted>\w+)))?"#).unwrap()
 });
 
 /// Tokenizes a raw HTML dcument.
@@ -60,26 +60,28 @@ fn lex_document(raw: &str) -> Vec<HtmlToken> {
         } else if let Some(_comment) = raw_token.name("comment") {
             // TODO: Track comments (for now it's more convenient to ignore them)
             // tokens.push(HtmlToken::Comment(comment.as_str().to_owned()));
-        } else if let Some(script) = raw_token.name("script") {
-            tokens.push(HtmlToken::Script(script.as_str().to_owned()));
-        } else if let Some(style) = raw_token.name("style") {
-            tokens.push(HtmlToken::Style(style.as_str().to_owned()));
-        } else if let Some(tag_name) = raw_token.name("left") {
-            tokens.push(HtmlToken::Left(tag_name.as_str().to_owned()));
-        } else if raw_token.name("closing").is_some() {
-            tokens.push(HtmlToken::Closing);
-        } else if raw_token.name("selfclosing").is_some() {
-            tokens.push(HtmlToken::SelfClosing);
-        } else if raw_token.name("right").is_some() {
-            tokens.push(HtmlToken::Right);
-        } else if let Some(attribute) = raw_token.name("attribute") {
-            tokens.push(HtmlToken::AttributeKey(attribute.as_str().to_owned()));
-        } else if let Some(quoted) = raw_token.name("quoted").or_else(|| raw_token.name("unquoted")) {
-            tokens.push(HtmlToken::AttributeValue(quoted.as_str().to_owned()));
-        } else if raw_token.name("white").is_some() {
-            // We ignore whitespace
-        } else if let Some(text) = raw_token.name("text") {
-            tokens.push(HtmlToken::Text(text.as_str().to_owned()));
+        } else if let Some(script) = raw_token.name("script").map(|m| m.as_str().to_owned()) {
+            tokens.push(HtmlToken::Script(script));
+        } else if let Some(style) = raw_token.name("style").map(|m| m.as_str().to_owned()) {
+            tokens.push(HtmlToken::Style(style));
+        } else if let Some(tag_name) = raw_token.name("openingtag").map(|m| m.as_str().to_owned()) {
+            let raw_attributes = &raw_token["attributes"];
+            let self_closing = raw_token.name("selfclosing").is_some();
+            let mut attributes = HashMap::new();
+            for raw_attribute in ATTRIBUTE_LEXER.captures_iter(raw_attributes) {
+                let key = raw_attribute["key"].to_owned();
+                let value = raw_attribute.name("doublequoted").map(|m| m.as_str())
+                    .or_else(|| raw_attribute.name("singlequoted").map(|m| m.as_str()))
+                    .or_else(|| raw_attribute.name("unquoted").map(|m| m.as_str()))
+                    .unwrap_or_else(|| "")
+                    .to_owned();
+                attributes.insert(key, value);
+            }
+            tokens.push(HtmlToken::Opening { tag_name, attributes, self_closing });
+        } else if let Some(tag_name) = raw_token.name("closingtag").map(|m| m.as_str().to_owned()) {
+            tokens.push(HtmlToken::Closing { tag_name });
+        } else if let Some(text) = raw_token.name("text").map(|m| m.as_str().to_owned()) {
+            tokens.push(HtmlToken::Text(text));
         }
     }
     tokens
@@ -168,14 +170,21 @@ impl HtmlParser {
         let mut children = Vec::new();
 
         if !opening.self_closing && !SINGLETON_TAGS.contains(opening.tag_name.as_str()) {
-            while tokens.peek()? != &HtmlToken::Closing {
-                let child = self.parse_node(tokens)?;
-                children.push(child);
+            loop {
+                match tokens.peek()? {
+                    HtmlToken::Closing { tag_name } => {
+                        if tag_name == &opening.tag_name {
+                            break
+                        } else {
+                            return Err(Error::UnexpectedToken(format!("Expected </{}>, but was </{}>", &opening.tag_name, tag_name)));
+                        }
+                    },
+                    _ => {
+                        let child = self.parse_node(tokens)?;
+                        children.push(child);
+                    }
+                }
             }
-
-            tokens.expect(&HtmlToken::Closing)?;
-            tokens.expect(&HtmlToken::Text(opening.tag_name.clone()))?;
-            tokens.expect(&HtmlToken::Right)?;
         }
 
         Ok(Element::new(&opening.tag_name, opening.attributes, children))
@@ -183,42 +192,9 @@ impl HtmlParser {
 
     /// Parse `<tag attr="value" ...>`
     fn parse_opening(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Opening> {
-        let tag_name = match tokens.next()? {
-            HtmlToken::Left(name) => Ok(name),
+        match tokens.next()? {
+            HtmlToken::Opening { tag_name, attributes, self_closing } => Ok(Opening { tag_name, attributes, self_closing }),
             token => Err(Error::UnexpectedToken(format!("Expected tag name but got {:?}", token))),
-        }?;
-
-        let mut attributes = HashMap::new();
-        while let Some((key, value)) = self.parse_attribute(tokens)? {
-            attributes.insert(key, value);
-        }
-
-        let self_closing = tokens.expect_optionally(&HtmlToken::SelfClosing)?;
-        if !self_closing {
-            tokens.expect(&HtmlToken::Right)?;
-        }
-
-        Ok(Opening {
-            tag_name,
-            attributes,
-            self_closing
-        })
-    }
-
-    /// Parse `attr="value"`
-    fn parse_attribute(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Option<(String, String)>> {
-        let token = tokens.peek()?;
-        if let HtmlToken::AttributeKey(key) = token.clone() {
-            tokens.next()?;
-            let value = if let HtmlToken::AttributeValue(value) = tokens.peek()?.clone() {
-                tokens.next()?;
-                value
-            } else {
-                "".to_owned()
-            };
-            Ok(Some((key, value)))
-        } else {
-            Ok(None)
         }
     }
 }
