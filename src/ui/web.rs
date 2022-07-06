@@ -23,8 +23,6 @@ struct Styling {
 struct RenderCtx<'a, 'b, 'c, 'd> {
     /// The paint context.
     paint: &'a mut PaintCtx<'b, 'c, 'd>,
-    /// An environment holding theme data etc.
-    env: &'a Env,
     /// The current (top-left) point at which to paint.
     point: Point,
     /// Styling info.
@@ -158,7 +156,6 @@ impl Widget<AppState> for WebRenderer {
         if let Some(document) = &data.document {
             let mut render_ctx = RenderCtx {
                 paint: ctx,
-                env,
                 point: Point::ZERO,
                 styling: Styling {
                     font_size: 12.0,
