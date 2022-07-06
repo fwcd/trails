@@ -5,12 +5,12 @@ use crate::{constants::VERSION, error::Result};
 
 /// A facility for performing HTTP requests that may hold state
 /// (e.g. cookies).
-pub struct NetworkSession {
+pub struct Session {
     client: Client,
     user_agent: String,
 }
 
-impl Default for NetworkSession {
+impl Default for Session {
     fn default() -> Self {
         Self {
             user_agent: format!("Trails/{}", VERSION),
@@ -19,7 +19,7 @@ impl Default for NetworkSession {
     }
 }
 
-impl NetworkSession {
+impl Session {
     /// Performs a GET request to the given URL.
     fn get(&mut self, url: &str) -> Result<Response> {
         info!("Getting {}", url);

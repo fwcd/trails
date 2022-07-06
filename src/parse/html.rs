@@ -4,16 +4,16 @@ use log::warn;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::{dom::{Document, Node, Element}, error::{Result, Error}};
+use crate::{model::dom::{Document, Node, Element}, error::{Result, Error}};
 
-use super::Tokens;
+use super::tokens::Tokens;
 
 /// A parser for HTML.
-pub struct HtmlParser {}
+pub struct Parser {}
 
-impl Default for HtmlParser {
+impl Default for Parser {
     fn default() -> Self {
-        HtmlParser {}
+        Parser {}
     }
 }
 
@@ -131,7 +131,7 @@ static SINGLETON_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
 
 // A recursive descent parser for HTML.
 
-impl HtmlParser {
+impl Parser {
     /// Parses an HTML document.
     pub fn parse(&self, raw: &str) -> Result<Document> {
         let mut tokens = Tokens::new(lex_document(raw));

@@ -1,6 +1,6 @@
 use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
-use log::{info, debug};
+use log::debug;
 
 use crate::error::{Result, Error};
 

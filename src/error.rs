@@ -1,5 +1,3 @@
-use std::iter::from_fn;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

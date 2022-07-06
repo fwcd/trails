@@ -8,7 +8,7 @@ A small web browser written from scratch using nothing but an HTTP library.
     - [ ] Design and add proper app icon
 - GUI
     - [x] Very basic setup
-    - [ ] Proper factoring of views into different modules
+    - [x] Proper factoring of views into different modules
     - [ ] Look into Piet and custom Druid widgets for the rendering engine
 - Networking
     - [x] Very basic setup

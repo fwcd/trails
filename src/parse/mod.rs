@@ -1,5 +1,2 @@
-mod html;
-mod tokens;
-
-pub use html::HtmlParser;
-pub use tokens::Tokens;
+pub mod html;
+pub mod tokens;
