@@ -13,7 +13,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
-            user_agent: format!("Trails/{}", VERSION),
+            user_agent: format!("Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36 Trails/{}", VERSION),
             client: Client::new(),
         }
     }
