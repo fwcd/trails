@@ -1,6 +1,6 @@
 use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
-use log::info;
+use log::{info, debug};
 
 use crate::error::{Result, Error};
 
@@ -20,7 +20,7 @@ impl<T> Tokens<T> where T: Debug {
     /// Consumes the next token.
     pub fn next(&mut self) -> Result<T> {
         if let Some(token) = self.tokens.next() {
-            info!("Consuming {:?}", token);
+            debug!("Consuming {:?}", token);
             Ok(token)
         } else {
             Err(Error::Eof)

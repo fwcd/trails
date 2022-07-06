@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use log::warn;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -37,7 +38,7 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
         // Style tags, i.e. <style> ... </style>
         r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
         // Opening/self-closing tags, e.g. <meta charset="utf-8" />
-        r#"(?:<\s*(?P<openingtag>\w+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|[\w:]+))?)*)\s*(?P<selfclosing>/)?\s*>)"#,
+        r#"(?:<\s*(?P<openingtag>\w+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|[\w:%]+))?)*)\s*(?P<selfclosing>/)?\s*>)"#,
         // Closing tags, e.g. </html>
         r#"(?:<\s*/\s*(?P<closingtag>\w+)\s*>)"#,
         // Whitespace
@@ -48,13 +49,26 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
 });
 
 static ATTRIBUTE_LEXER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?P<key>[\w\-]+)\s*(?:=\s*(?:"(?P<doublequoted>[^"]*)"|'(?P<singlequoted>[^']*)'|(?P<unquoted>[\w:]+)))?"#).unwrap()
+    Regex::new(r#"(?P<key>[\w\-]+)\s*(?:=\s*(?:"(?P<doublequoted>[^"]*)"|'(?P<singlequoted>[^']*)'|(?P<unquoted>[\w:%]+)))?"#).unwrap()
 });
 
 /// Tokenizes a raw HTML dcument.
 fn lex_document(raw: &str) -> Vec<HtmlToken> {
     let mut tokens = Vec::new();
+    let mut last_end: usize = 0;
+
     for raw_token in HTML_LEXER.captures_iter(raw) {
+        let range = raw_token.get(0).unwrap().range();
+        if last_end != range.start {
+            let window = 80;
+            warn!(
+                "Skipping '{}' (context: '...{}...')",
+                &raw[last_end..range.start],
+                &raw[(last_end - window).max(0)..(range.start + window).min(raw.len())]
+            );
+        }
+        last_end = range.end;
+
         if let Some(doctype) = raw_token.name("doctype") {
             tokens.push(HtmlToken::Doctype(doctype.as_str().to_owned()));
         } else if let Some(_comment) = raw_token.name("comment") {
@@ -84,6 +98,7 @@ fn lex_document(raw: &str) -> Vec<HtmlToken> {
             tokens.push(HtmlToken::Text(text));
         }
     }
+
     tokens
 }
 
