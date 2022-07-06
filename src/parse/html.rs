@@ -37,7 +37,7 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
         // Style tags, i.e. <style> ... </style>
         r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
         // Opening/self-closing tags, e.g. <meta charset="utf-8" />
-        r#"(?:<\s*(?P<openingtag>\w+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|\w+))?)*)\s*(?P<selfclosing>/?)\s*>)"#,
+        r#"(?:<\s*(?P<openingtag>\w+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|\w+))?)*)\s*(?P<selfclosing>/)?\s*>)"#,
         // Closing tags, e.g. </html>
         r#"(?:<\s*/\s*(?P<closingtag>\w+)\s*>)"#,
         // Whitespace
@@ -171,12 +171,13 @@ impl HtmlParser {
 
         if !opening.self_closing && !SINGLETON_TAGS.contains(opening.tag_name.as_str()) {
             loop {
-                match tokens.peek()? {
+                match tokens.peek()?.clone() {
                     HtmlToken::Closing { tag_name } => {
-                        if tag_name == &opening.tag_name {
+                        tokens.next()?;
+                        if tag_name == opening.tag_name {
                             break
                         } else {
-                            return Err(Error::UnexpectedToken(format!("Expected </{}>, but was </{}>", &opening.tag_name, tag_name)));
+                            return Err(Error::UnexpectedToken(format!("Expected </{}>, but was </{}>", opening.tag_name, tag_name)));
                         }
                     },
                     _ => {
