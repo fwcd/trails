@@ -9,12 +9,14 @@ use crate::{state::AppState, model::dom::{Node, Element, Document}};
 pub struct WebRenderer;
 
 /// Styling info used during a DOM rendering pass.
-#[derive(Copy, Clone)]
+#[derive(Clone)] // TODO: Derive `Copy` once https://github.com/linebender/piet/pull/524 is merged
 struct Styling {
     /// The current font size.
     font_size: f64,
     /// The current font weight.
     font_weight: FontWeight,
+    /// The color to render text with.
+    color: Color,
 }
 
 /// State used during a DOM rendering pass.
@@ -93,16 +95,20 @@ impl WebRenderer {
     /// Renders a single DOM element.
     fn render_element(&self, ctx: &mut RenderCtx, node: &Element) {
         if RENDERED_TAGS.contains(node.tag_name()) {
-            let old_styling = ctx.styling;
+            let old_styling = ctx.styling.clone();
 
             // Change styling info as needed
             match node.tag_name() {
-                "b" => ctx.styling.font_weight = FontWeight::BOLD,
+                "b" | "strong" => ctx.styling.font_weight = FontWeight::BOLD,
                 "h1" => ctx.styling.font_size = 32.0,
                 "h2" => ctx.styling.font_size = 26.0,
                 "h3" => ctx.styling.font_size = 22.0,
                 "h4" => ctx.styling.font_size = 20.0,
+                "a" => ctx.styling.color = Color::BLUE,
                 _ => {},
+            }
+            if node.is_heading() {
+                ctx.styling.font_weight = FontWeight::BOLD;
             }
 
             // Render children
@@ -122,6 +128,7 @@ impl WebRenderer {
             .new_text_layout(text.to_owned())
             .font(FontFamily::SERIF, ctx.styling.font_size)
             .default_attribute(ctx.styling.font_weight)
+            .text_color(ctx.styling.color.clone())
             .build()
             .expect("Could not construct text layout"); // TODO: Better error handling
         ctx.paint.draw_text(&layout, ctx.point);
@@ -156,6 +163,7 @@ impl Widget<AppState> for WebRenderer {
                 styling: Styling {
                     font_size: 12.0,
                     font_weight: FontWeight::REGULAR,
+                    color: Color::BLACK,
                 },
             };
             self.render_document(&mut render_ctx, &*document);

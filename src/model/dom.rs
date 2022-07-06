@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use once_cell::sync::Lazy;
+use regex::Regex;
+
 /// An HTML document.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Document {
@@ -36,6 +39,8 @@ pub struct Element {
     children: Vec<Node>,
 }
 
+static HEADING_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"h\d+").unwrap());
+
 impl Element {
     /// Creates a new element with the given tag name, attributes and children.
     pub fn new(tag_name: &str, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
@@ -58,6 +63,11 @@ impl Element {
     /// Fetches the tag name.
     pub fn tag_name(&self) -> &str {
         &self.tag_name
+    }
+
+    /// Whether this is a heading tag.
+    pub fn is_heading(&self) -> bool {
+        HEADING_TAG.is_match(&self.tag_name)
     }
 
     /// Iterates the children.
