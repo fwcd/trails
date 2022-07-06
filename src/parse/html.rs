@@ -31,6 +31,10 @@ enum HtmlToken {
     Text(String), // e.g. tag names, attribute names, values, ...
 }
 
+// TODO: Instead of parsing half-open tags etc. we should parse
+//       entire opening/self-closing/closing tags as single tokens
+//       and then apply a second parse for the attributes.
+
 static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&[
         r#"(?:<![dD][oO][cC][tT][yY][pP][eE]\s+(?P<doctype>[^>]+)>)"#,
