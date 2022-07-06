@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use dom::Document;
 use druid::{AppLauncher, WindowDesc, Widget, widget::{Flex, TextBox, Button, Label}, WidgetExt, Data, Lens, Env};
-use log::LevelFilter;
+use log::{LevelFilter, error};
 use network::NetworkSession;
 use parse::HtmlParser;
 use simple_logger::SimpleLogger;
@@ -55,11 +55,12 @@ fn build_ui() -> impl Widget<AppState> {
                 .with_child(
                     Button::new("Visit")
                         .on_click(|_ctx, data: &mut AppState, _env| {
-                            let raw = data.session.lock().unwrap().get_text(data.url.as_str())
-                                .expect("Could not perform request"); // TODO: Handle this error
-                            let doc = data.parser.parse(raw.as_str())
-                                .expect("Could not parse HTML"); // TODO: Handle this error
-                            data.document = Some(Arc::new(doc));
+                            let doc = data.session.lock().unwrap().get_text(data.url.as_str())
+                                .and_then(|raw| data.parser.parse(raw.as_str()));
+                            match doc {
+                                Ok(doc) => data.document = Some(Arc::new(doc)),
+                                Err(e) => error!("Error while fetching/parsing HTML: {:?}", e),
+                            };
                         })
                 )
                 .padding(10.0)
