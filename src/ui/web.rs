@@ -70,6 +70,19 @@ static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
     set
 });
 
+static INLINE_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
+    let mut set = HashSet::new();
+    set.insert("div");
+    set.insert("a");
+    set.insert("span");
+    set.insert("b");
+    set.insert("i");
+    set.insert("u");
+    set.insert("strong");
+    set.insert("em");
+    set
+});
+
 impl WebRenderer {
     pub fn new() -> Self {
         Self
