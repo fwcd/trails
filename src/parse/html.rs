@@ -38,7 +38,7 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
         // Style tags, i.e. <style> ... </style>
         r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
         // Opening/self-closing tags, e.g. <meta charset="utf-8" />
-        r#"(?:<\s*(?P<openingtag>[\w\-]+)(?P<attributes>(?:\s+[\w\-]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|[\w:%]+))?)*)\s*(?P<selfclosing>/)?\s*>)"#,
+        r#"(?:<\s*(?P<openingtag>[\w\-]+)(?P<attributes>(?:\s+[\w\-:]+\s*(?:=\s*(?:"[^"]*"|'[^']*'|[\w:%]+))?)*)\s*(?P<selfclosing>/)?\s*>)"#,
         // Closing tags, e.g. </html>
         r#"(?:<\s*/\s*(?P<closingtag>[\w-]+)\s*>)"#,
         // Whitespace
@@ -49,7 +49,7 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
 });
 
 static ATTRIBUTE_LEXER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?P<key>[\w\-]+)\s*(?:=\s*(?:"(?P<doublequoted>[^"]*)"|'(?P<singlequoted>[^']*)'|(?P<unquoted>[\w:%]+)))?"#).unwrap()
+    Regex::new(r#"(?P<key>[\w\-:]+)\s*(?:=\s*(?:"(?P<doublequoted>[^"]*)"|'(?P<singlequoted>[^']*)'|(?P<unquoted>[\w:%]+)))?"#).unwrap()
 });
 
 /// Tokenizes a raw HTML dcument.
