@@ -1,5 +1,7 @@
 use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
+use log::debug;
+
 use crate::error::{Result, Error};
 
 /// A wrapper around a mutable position and a token vector for convenient
@@ -18,8 +20,7 @@ impl<T> Tokens<T> where T: Debug {
     /// Consumes the next token.
     pub fn next(&mut self) -> Result<T> {
         if let Some(token) = self.tokens.next() {
-            // FIXME: Remove this (only for debugging)
-            println!("{:?}", token);
+            debug!("Consuming {:?}", token);
             Ok(token)
         } else {
             Err(Error::Eof)

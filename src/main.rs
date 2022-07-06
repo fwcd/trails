@@ -9,8 +9,10 @@ use std::sync::{Arc, Mutex};
 
 use dom::Document;
 use druid::{AppLauncher, WindowDesc, Widget, widget::{Flex, TextBox, Button, Label}, WidgetExt, Data, Lens, Env};
+use log::LevelFilter;
 use network::NetworkSession;
 use parse::HtmlParser;
+use simple_logger::SimpleLogger;
 
 #[derive(Clone, Data, Lens)]
 struct AppState {
@@ -21,6 +23,8 @@ struct AppState {
 }
 
 fn main() {
+    SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
+
     let window = WindowDesc::new(build_ui)
         .title("Trails")
         .window_size((800.0, 600.0));

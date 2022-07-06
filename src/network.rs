@@ -1,3 +1,4 @@
+use log::info;
 use reqwest::{blocking::{Client, Response}, header::USER_AGENT};
 
 use crate::{constants::VERSION, error::Result};
@@ -21,6 +22,7 @@ impl Default for NetworkSession {
 impl NetworkSession {
     /// Performs a GET request to the given URL.
     fn get(&mut self, url: &str) -> Result<Response> {
+        info!("Getting {}", url);
         // TODO: Async
         let response = self.client.get(url)
             .header(USER_AGENT, &self.user_agent)
