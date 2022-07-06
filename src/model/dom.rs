@@ -31,28 +31,33 @@ pub enum Node {
 /// An HTML element.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Element {
-    tag: String,
+    tag_name: String,
     attributes: HashMap<String, String>,
     children: Vec<Node>,
 }
 
 impl Element {
     /// Creates a new element with the given tag name, attributes and children.
-    pub fn new(tag: &str, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
+    pub fn new(tag_name: &str, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
         Self {
-            tag: tag.to_owned(),
+            tag_name: tag_name.to_owned(),
             attributes,
             children
         }
     }
 
     /// Creates a new element with the given tag name.
-    pub fn tag(tag: &str) -> Self {
+    pub fn tag(tag_name: &str) -> Self {
         Self {
-            tag: tag.to_owned(),
+            tag_name: tag_name.to_owned(),
             attributes: HashMap::new(),
             children: Vec::new(),
         }
+    }
+
+    /// Fetches the tag name.
+    pub fn tag_name(&self) -> &str {
+        &self.tag_name
     }
 
     /// Iterates the children.
