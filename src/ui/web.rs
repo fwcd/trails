@@ -64,6 +64,9 @@ static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
     set.insert("label");
     set.insert("noscript");
     set.insert("abbr");
+    set.insert("nobr");
+    set.insert("wbr");
+    set.insert("center");
     set
 });
 
