@@ -9,7 +9,6 @@ A small web browser written from scratch using nothing but an HTTP library.
 - GUI
     - [x] Very basic setup
     - [ ] Proper factoring of views into different modules
-    - [ ] Make content view scrollable
     - [ ] Look into Piet and custom Druid widgets for the rendering engine
 - Networking
     - [x] Very basic setup

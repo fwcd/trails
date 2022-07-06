@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::state::AppState;
-use druid::{Widget, widget::{Flex, TextBox, Button, Label}, WidgetExt, Env};
+use druid::{Widget, widget::{Flex, TextBox, Button, Label, Scroll}, WidgetExt, Env};
 use log::error;
 
 pub fn build() -> impl Widget<AppState> {
@@ -29,11 +29,14 @@ pub fn build() -> impl Widget<AppState> {
                 .padding(10.0)
         )
         // Content
-        .with_child(
-            Label::new(|data: &AppState, _env: &Env| {
-                // TODO: Actually render the doc in a meaningful way
-                let rendered = format!("{:#?}", data.document);
-                rendered
-            })
+        .with_flex_child(
+            Scroll::new(
+                Label::new(|data: &AppState, _env: &Env| {
+                    // TODO: Actually render the doc in a meaningful way
+                    let rendered = format!("{:#?}", data.document);
+                    rendered
+                })
+            ),
+            1.0
         )
 }
