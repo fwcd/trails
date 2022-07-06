@@ -8,5 +8,5 @@ pub fn app_widget() -> impl Widget<AppState> {
         // Address bar
         .with_child(bar_widget())
         // Content
-        .with_flex_child(Scroll::new(content_widget()), 1.0)
+        .with_flex_child(Scroll::new(content_widget()).vertical(), 1.0)
 }

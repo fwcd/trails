@@ -55,6 +55,11 @@ impl Element {
         }
     }
 
+    /// Iterates the children.
+    pub fn children(&self) -> impl Iterator<Item=&Node> {
+        self.children.iter()
+    }
+
     /// Adds a new child to the element.
     pub fn add_child(&mut self, child: Node) {
         self.children.push(child);
