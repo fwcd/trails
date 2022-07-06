@@ -33,7 +33,7 @@ enum HtmlToken {
 
 static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&[
-        r#"(?:<!DOCTYPE\s+(?P<doctype>[^>]+)>)"#,
+        r#"(?:<![dD][oO][cC][tT][yY][pP][eE]\s+(?P<doctype>[^>]+)>)"#,
         r#"(?:<!--(?P<comment>-?[^-]+|--[^>])*-->)"#,
         r#"(?:<\s*[sS][cC][rR][iI][pP][tT][^>]*>(?P<script>[\s\S]*?)</\s*[sS][cC][rR][iI][pP][tT]\s*>)"#,
         r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
