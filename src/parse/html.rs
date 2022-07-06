@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::{dom::{Document, Node, Element}, error::{Result, Error}, util::none_if_empty};
+use crate::{dom::{Document, Node, Element}, error::{Result, Error}};
 
 use super::Tokens;
 
@@ -20,12 +20,14 @@ impl Default for HtmlParser {
 enum HtmlToken {
     Doctype(String), // <!DOCTYPE ...>
     Comment(String), // <!-- ... -->
-    Left, // <
+    Script(String), // <script> ... </script>
+    Style(String), // <style> ... </style>
+    Left(String), // <tag
+    AttributeKey(String),
+    AttributeValue(String),
     Closing, // </
     SelfClosing, // />
     Right, // >
-    Eq, // =
-    Quoted(String), // "..."
     Text(String), // e.g. tag names, attribute names, values, ...
 }
 
@@ -33,13 +35,13 @@ static HTML_LEXER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&[
         r#"(?:<!DOCTYPE\s+(?P<doctype>[^>]+)>)"#,
         r#"(?:<!--(?P<comment>-?[^-]+|--[^>])*-->)"#,
-        r#"(?P<left><)"#,
+        r#"(?:<\s*[sS][cC][rR][iI][pP][tT][^>]*>(?P<script>[\s\S]*?)</\s*[sS][cC][rR][iI][pP][tT]\s*>)"#,
+        r#"(?:<\s*[sS][tT][yY][lL][eE][^>]*>(?P<style>[\s\S]*?)</\s*[sS][tT][yY][lL][eE]\s*>)"#,
+        r#"(?:<\s*(?P<left>\w+)(?:\s*(?P<attribute>[^>]+)(?:=(?:"(?P<quoted>[^"]+)"|(?P<unquoted>\w+)))?)*)"#,
         r#"(?P<closing></)"#,
         r#"(?P<selfclosing>/\s*>)"#,
         r#"(?P<right>>)"#,
         r#"(?P<eq>=)"#,
-        r#"(?P<doublequoted>"[^"]+")"#,
-        r#"(?P<singlequoted>'[^']+')"#,
         r#"(?P<white>\s+)"#,
         r#"(?P<text>[^<>/=]+)"#,
     ].join("|")).unwrap()
@@ -51,22 +53,27 @@ fn lex_document(raw: &str) -> Vec<HtmlToken> {
     for raw_token in HTML_LEXER.captures_iter(raw) {
         if let Some(doctype) = raw_token.name("doctype") {
             tokens.push(HtmlToken::Doctype(doctype.as_str().to_owned()));
-        } else if let Some(comment) = raw_token.name("comment") {
-            tokens.push(HtmlToken::Comment(comment.as_str().to_owned()));
-        } else if raw_token.name("left").is_some() {
-            tokens.push(HtmlToken::Left);
+        } else if let Some(_comment) = raw_token.name("comment") {
+            // TODO: Track comments (for now it's more convenient to ignore them)
+            // tokens.push(HtmlToken::Comment(comment.as_str().to_owned()));
+        } else if let Some(script) = raw_token.name("script") {
+            tokens.push(HtmlToken::Script(script.as_str().to_owned()));
+        } else if let Some(style) = raw_token.name("style") {
+            tokens.push(HtmlToken::Style(style.as_str().to_owned()));
+        } else if let Some(tag_name) = raw_token.name("left") {
+            tokens.push(HtmlToken::Left(tag_name.as_str().to_owned()));
         } else if raw_token.name("closing").is_some() {
             tokens.push(HtmlToken::Closing);
         } else if raw_token.name("selfclosing").is_some() {
             tokens.push(HtmlToken::SelfClosing);
         } else if raw_token.name("right").is_some() {
             tokens.push(HtmlToken::Right);
-        } else if raw_token.name("eq").is_some() {
-            tokens.push(HtmlToken::Eq);
-        } else if let Some(quoted) = raw_token.name("doublequoted").or_else(|| raw_token.name("singlequoted")) {
-            tokens.push(HtmlToken::Quoted(quoted.as_str().to_owned()));
+        } else if let Some(attribute) = raw_token.name("attribute") {
+            tokens.push(HtmlToken::AttributeKey(attribute.as_str().to_owned()));
+        } else if let Some(quoted) = raw_token.name("quoted").or_else(|| raw_token.name("unquoted")) {
+            tokens.push(HtmlToken::AttributeValue(quoted.as_str().to_owned()));
         } else if raw_token.name("white").is_some() {
-            // We skip whitespace
+            // We ignore whitespace
         } else if let Some(text) = raw_token.name("text") {
             tokens.push(HtmlToken::Text(text.as_str().to_owned()));
         }
@@ -126,8 +133,9 @@ impl HtmlParser {
 
     /// Parse an element or simply text (between tags).
     fn parse_node(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Node> {
-        if let HtmlToken::Text(txt) = tokens.peek()? {
-            Ok(Node::Text(txt.clone()))
+        if let HtmlToken::Text(txt) = tokens.peek()?.clone() {
+            tokens.next()?;
+            Ok(Node::Text(txt))
         } else {
             Ok(Node::Element(self.parse_element(tokens)?))
         }
@@ -135,6 +143,23 @@ impl HtmlParser {
 
     /// Parse `<tag> ... </tag>` (or only the opening tag for some tags)
     fn parse_element(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Element> {
+        // Match specially treated tags first
+        match tokens.peek()?.clone() {
+            HtmlToken::Script(script) => {
+                tokens.next()?;
+                return Ok(Element::new("script", HashMap::new(), vec![
+                    Node::Text(script)
+                ]));
+            },
+            HtmlToken::Style(style) => {
+                tokens.next()?;
+                return Ok(Element::new("style", HashMap::new(), vec![
+                    Node::Text(style)
+                ]));
+            },
+            _ => {},
+        };
+
         let opening = self.parse_opening(tokens)?;
         let mut children = Vec::new();
 
@@ -149,15 +174,13 @@ impl HtmlParser {
             tokens.expect(&HtmlToken::Right)?;
         }
 
-        Ok(Element::new(opening.tag_name, opening.attributes, children))
+        Ok(Element::new(&opening.tag_name, opening.attributes, children))
     }
 
     /// Parse `<tag attr="value" ...>`
     fn parse_opening(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Opening> {
-        tokens.expect(&HtmlToken::Left)?;
-
         let tag_name = match tokens.next()? {
-            HtmlToken::Text(name) => Ok(name),
+            HtmlToken::Left(name) => Ok(name),
             token => Err(Error::UnexpectedToken(format!("Expected tag name but got {:?}", token))),
         }?;
 
@@ -181,13 +204,14 @@ impl HtmlParser {
     /// Parse `attr="value"`
     fn parse_attribute(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Option<(String, String)>> {
         let token = tokens.peek()?;
-        if let HtmlToken::Text(key) = token.clone() {
+        if let HtmlToken::AttributeKey(key) = token.clone() {
             tokens.next()?;
-            tokens.expect(&HtmlToken::Eq)?;
-            let value = match tokens.next()? {
-                HtmlToken::Text(txt) | HtmlToken::Quoted(txt) => Ok(txt),
-                token => Err(Error::UnexpectedToken(format!("Expected attribute value but got {:?}", token))),
-            }?;
+            let value = if let HtmlToken::AttributeValue(value) = tokens.peek()?.clone() {
+                tokens.next()?;
+                value
+            } else {
+                "".to_owned()
+            };
             Ok(Some((key, value)))
         } else {
             Ok(None)

@@ -38,8 +38,12 @@ pub struct Element {
 
 impl Element {
     /// Creates a new element with the given tag name, attributes and children.
-    pub fn new(tag: String, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
-        Self { tag, attributes, children }
+    pub fn new(tag: &str, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
+        Self {
+            tag: tag.to_owned(),
+            attributes,
+            children
+        }
     }
 
     /// Creates a new element with the given tag name.

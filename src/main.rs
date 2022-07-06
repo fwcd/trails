@@ -17,7 +17,7 @@ struct AppState {
     url: Arc<String>,
     parser: Arc<HtmlParser>,
     session: Arc<Mutex<NetworkSession>>,
-    document: Arc<Mutex<Option<Document>>>,
+    document: Option<Arc<Document>>,
 }
 
 fn main() {
@@ -26,10 +26,10 @@ fn main() {
         .window_size((800.0, 600.0));
 
     let initial_state = AppState {
-        url: Arc::new("".to_owned()),
+        url: Arc::new("https://en.wikipedia.org".to_owned()),
         parser: Arc::new(HtmlParser::default()),
         session: Arc::new(Mutex::new(NetworkSession::default())),
-        document: Arc::new(Mutex::new(None)),
+        document: None,
     };
 
     AppLauncher::with_window(window)
@@ -55,7 +55,7 @@ fn build_ui() -> impl Widget<AppState> {
                                 .expect("Could not perform request"); // TODO: Handle this error
                             let doc = data.parser.parse(raw.as_str())
                                 .expect("Could not parse HTML"); // TODO: Handle this error
-                            *data.document.lock().unwrap() = Some(doc);
+                            data.document = Some(Arc::new(doc));
                         })
                 )
                 .padding(10.0)
@@ -64,7 +64,7 @@ fn build_ui() -> impl Widget<AppState> {
         .with_child(
             Label::new(|data: &AppState, _env: &Env| {
                 // TODO: Actually render the doc in a meaningful way
-                let rendered = format!("{:#?}", data.document.lock().unwrap());
+                let rendered = format!("{:#?}", data.document);
                 rendered
             })
         )

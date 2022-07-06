@@ -8,7 +8,7 @@ pub struct Tokens<T> {
     tokens: Peekable<IntoIter<T>>,
 }
 
-impl<T> Tokens<T> {
+impl<T> Tokens<T> where T: Debug {
     pub fn new(tokens: Vec<T>) -> Self {
         Self {
             tokens: tokens.into_iter().peekable(),
@@ -18,6 +18,8 @@ impl<T> Tokens<T> {
     /// Consumes the next token.
     pub fn next(&mut self) -> Result<T> {
         if let Some(token) = self.tokens.next() {
+            // FIXME: Remove this (only for debugging)
+            println!("{:?}", token);
             Ok(token)
         } else {
             Err(Error::Eof)
