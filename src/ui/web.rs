@@ -24,6 +24,8 @@ struct Styling {
 /// The rendering state.
 #[derive(Clone)]
 struct RenderState {
+    /// The size of the current layout container.
+    base_size: Size,
     /// The current (top-left) point of the current layout container
     /// (e.g. where the next line is started).
     base_point: Point,
@@ -100,12 +102,13 @@ impl WebRenderer {
     }
 
     /// Creates a new render context with the default settings.
-    fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>) -> RenderCtx<'a, 'b, 'c, 'd> {
+    fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>, base_size: Size) -> RenderCtx<'a, 'b, 'c, 'd> {
         let font_size = 12.0;
         RenderCtx {
             paint,
             state: RenderState {
                 base_point: Point::ZERO,
+                base_size,
                 point: Point::ZERO,
                 styling: Styling {
                     font_size,
@@ -174,14 +177,11 @@ impl WebRenderer {
                 }
                 // Render the child element, which computes its size
                 let child_size = self.render_node(ctx, child);
-                // Depending on whether this is an inline tag we should either break or not
-                if is_inline {
-                    let width_delta = child_size.width;
-                    line_size.width += width_delta;
-                    line_size.height = line_size.height.max(child_size.height);
-                    // Move 'cursor' forward on this line
-                    ctx.state.point.x += width_delta;
-                } else {
+                // Depending on whether this is an inline tag and whether we are past the
+                // container size we decide whether we should break the line.
+                let relative_pos = ctx.state.point - ctx.state.base_point;
+                let break_line = !is_inline || relative_pos.x + child_size.width >= ctx.state.base_size.width;
+                if break_line {
                     line_size.width = line_size.width.max(child_size.width);
                     line_size.height = line_size.height.max(child_size.height);
                     size.width = size.width.max(line_size.width);
@@ -190,6 +190,12 @@ impl WebRenderer {
                     ctx.state.point.x = ctx.state.base_point.x;
                     ctx.state.point.y += line_size.height;
                     line_size = Size::ZERO;
+                } else {
+                    let width_delta = child_size.width;
+                    line_size.width += width_delta;
+                    line_size.height = line_size.height.max(child_size.height);
+                    // Move 'cursor' forward on this line
+                    ctx.state.point.x += width_delta;
                 }
             }
             if line_size != Size::ZERO {
@@ -246,7 +252,7 @@ impl Widget<AppState> for WebRenderer {
         let min_size = bc.min();
         if let Some(document) = &data.document {
             // Perform a render pass without a paint context to determine the document's size
-            let mut render_ctx = self.make_render_ctx(None);
+            let mut render_ctx = self.make_render_ctx(None, min_size);
             let doc_size = self.render_document(&mut render_ctx, &*document);
             info!("Document size: {}", doc_size);
             Size::new(
@@ -261,7 +267,8 @@ impl Widget<AppState> for WebRenderer {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
         if let Some(document) = &data.document {
             // Perform a render pass over the document
-            let mut render_ctx = self.make_render_ctx(Some(ctx));
+            let size = ctx.size();
+            let mut render_ctx = self.make_render_ctx(Some(ctx), size);
             self.render_document(&mut render_ctx, &*document);
         }
     }
