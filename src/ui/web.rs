@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
-use log::{debug, info, trace};
+use log::{debug, trace};
 use once_cell::sync::Lazy;
 
 use crate::{state::AppState, model::dom::{Node, Element, Document}};
@@ -254,7 +254,7 @@ impl Widget<AppState> for WebRenderer {
             // Perform a render pass without a paint context to determine the document's size
             let mut render_ctx = self.make_render_ctx(None, min_size);
             let doc_size = self.render_document(&mut render_ctx, &*document);
-            info!("Document size: {}", doc_size);
+            debug!("Document size: {}", doc_size);
             Size::new(
                 min_size.width.max(doc_size.width),
                 min_size.height.max(doc_size.height),
