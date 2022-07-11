@@ -19,14 +19,24 @@ struct Styling {
     color: Color,
 }
 
+/// The rendering state.
+#[derive(Clone)]
+struct RenderState {
+    /// The current (top-left) point of the current layout container
+    /// (e.g. where the next line is started).
+    base_point: Point,
+    /// The current (top-left) point at which to paint (e.g. text).
+    point: Point,
+    /// Styling info.
+    styling: Styling,
+}
+
 /// State used during a DOM rendering pass.
 struct RenderCtx<'a, 'b, 'c, 'd> {
     /// The paint context, if painting.
     paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
-    /// The current (top-left) point at which to paint.
-    point: Point,
-    /// Styling info.
-    styling: Styling,
+    /// The rendering state.
+    state: RenderState,
 }
 
 static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
@@ -72,7 +82,6 @@ static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
 
 static INLINE_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
     let mut set = HashSet::new();
-    set.insert("div");
     set.insert("a");
     set.insert("span");
     set.insert("b");
@@ -92,11 +101,14 @@ impl WebRenderer {
     fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>) -> RenderCtx<'a, 'b, 'c, 'd> {
         RenderCtx {
             paint,
-            point: Point::ZERO,
-            styling: Styling {
-                font_size: 12.0,
-                font_weight: FontWeight::REGULAR,
-                color: Color::BLACK,
+            state: RenderState {
+                base_point: Point::ZERO,
+                point: Point::ZERO,
+                styling: Styling {
+                    font_size: 12.0,
+                    font_weight: FontWeight::REGULAR,
+                    color: Color::BLACK,
+                },
             },
         }
     }
@@ -127,34 +139,53 @@ impl WebRenderer {
             // TODO: It would probably be better to just pass a cloned context
             //       to the child, the borrow-checker however complains about
             //       the mutable reference to the paint context in that case.
-            let old_point = ctx.point;
-            let old_styling = ctx.styling.clone();
+            let start_state = ctx.state.clone();
             let mut size = Size::ZERO;
 
             // Change styling info as needed
-            match node.tag_name() {
-                "b" | "strong" => ctx.styling.font_weight = FontWeight::BOLD,
-                "h1" => ctx.styling.font_size = 32.0,
-                "h2" => ctx.styling.font_size = 26.0,
-                "h3" => ctx.styling.font_size = 22.0,
-                "h4" => ctx.styling.font_size = 20.0,
-                "a" => ctx.styling.color = Color::BLUE,
-                _ => {},
-            }
-            if node.is_heading() {
-                ctx.styling.font_weight = FontWeight::BOLD;
+            {
+                let mut styling = &mut ctx.state.styling;
+                match node.tag_name() {
+                    "b" | "strong" => styling.font_weight = FontWeight::BOLD,
+                    "h1" => styling.font_size = 32.0,
+                    "h2" => styling.font_size = 26.0,
+                    "h3" => styling.font_size = 22.0,
+                    "h4" => styling.font_size = 20.0,
+                    "a" => styling.color = Color::BLUE,
+                    _ => {},
+                }
+                if node.is_heading() {
+                    styling.font_weight = FontWeight::BOLD;
+                }
             }
 
             // Render children
+            let mut line_size = Size::ZERO;
             for child in node.children() {
                 let child_size = self.render_node(ctx, child);
-                size.width = size.width.max(child_size.width);
-                size.height += child_size.height;
-                ctx.point.y += child_size.height;
+                // Check whether this is an inline tag to determine if we need to break
+                if child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t)) {
+                    line_size.width += child_size.width;
+                    line_size.height = line_size.height.max(child_size.height);
+                    // Move 'cursor' forward
+                    ctx.state.point.x += child_size.width;
+                } else {
+                    line_size.width = line_size.width.max(child_size.width);
+                    line_size.height = line_size.height.max(child_size.height);
+                    size.width = size.width.max(line_size.width);
+                    size.height += line_size.height;
+                    // Jump to next line
+                    ctx.state.point.x = ctx.state.base_point.x;
+                    ctx.state.point.y += line_size.height;
+                    line_size = Size::ZERO;
+                }
+            }
+            if line_size != Size::ZERO {
+                size.width = size.width.max(line_size.width);
+                size.height += line_size.height;
             }
 
-            ctx.point = old_point;
-            ctx.styling = old_styling;
+            ctx.state = start_state;
             trace!("<{}> has size {}", node.tag_name(), size);
             size
         } else {
@@ -165,21 +196,22 @@ impl WebRenderer {
 
     /// Renders some text from the DOM.
     fn render_text(&self, ctx: &mut RenderCtx, text: &str) -> Size {
+        let state = &ctx.state;
         if let Some(paint) = &mut ctx.paint {
             // We are painting
             let layout = paint.text()
                 .new_text_layout(text.to_owned())
-                .font(FontFamily::SERIF, ctx.styling.font_size)
-                .default_attribute(ctx.styling.font_weight)
-                .text_color(ctx.styling.color.clone())
+                .font(FontFamily::SERIF, state.styling.font_size)
+                .default_attribute(state.styling.font_weight)
+                .text_color(state.styling.color.clone())
                 .build()
                 .expect("Could not construct text layout"); // TODO: Better error handling
-            paint.draw_text(&layout, ctx.point);
+            paint.draw_text(&layout, state.point);
             layout.size()
         } else {
             // We are just layouting
             // TODO: Use a more accurate heuristic for determining the text size
-            let font_size = ctx.styling.font_size;
+            let font_size = state.styling.font_size;
             Size::new(text.len() as f64 * font_size * 0.45, font_size)
         }
     }

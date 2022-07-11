@@ -31,6 +31,16 @@ pub enum Node {
     Element(Element),
 }
 
+impl Node {
+    /// The tag name if this is an element.
+    pub fn tag_name(&self) -> Option<&str> {
+        match self {
+            Self::Element(element) => Some(element.tag_name()),
+            _ => None,
+        }
+    }
+}
+
 /// An HTML element.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Element {
