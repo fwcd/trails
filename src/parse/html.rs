@@ -60,11 +60,11 @@ fn lex_document(raw: &str) -> Vec<HtmlToken> {
     for raw_token in HTML_LEXER.captures_iter(raw) {
         let range = raw_token.get(0).unwrap().range();
         if last_end != range.start {
-            let window = 80;
+            let window = 60;
             warn!(
                 "Skipping '{}' (context: '...{}...')",
                 &raw[last_end..range.start],
-                &raw[(last_end - window).max(0)..(range.start + window).min(raw.len())]
+                &raw[(last_end.max(window) - window)..(range.start.min(raw.len() - window) + window)]
             );
         }
         last_end = range.end;
