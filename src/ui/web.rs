@@ -21,6 +21,14 @@ struct Styling {
     spacing: f64,
 }
 
+/// Parameters to pass to the renderer.
+struct RenderParams<'a, 'b, 'c, 'd> {
+    /// The paint context, if painting.
+    paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
+    /// The size of the viewport.
+    base_size: Size,
+}
+
 /// The rendering state.
 #[derive(Clone)]
 struct RenderState {
@@ -102,13 +110,13 @@ impl WebRenderer {
     }
 
     /// Creates a new render context with the default settings.
-    fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>, base_size: Size) -> RenderCtx<'a, 'b, 'c, 'd> {
+    fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, params: RenderParams<'a, 'b, 'c, 'd>) -> RenderCtx<'a, 'b, 'c, 'd> {
         let font_size = 12.0;
         RenderCtx {
-            paint,
+            paint: params.paint,
             state: RenderState {
                 base_point: Point::ZERO,
-                base_size,
+                base_size: params.base_size,
                 point: Point::ZERO,
                 styling: Styling {
                     font_size,
@@ -259,7 +267,10 @@ impl Widget<AppState> for WebRenderer {
         let min_size = bc.min();
         if let Some(document) = &data.document {
             // Perform a render pass without a paint context to determine the document's size
-            let mut render_ctx = self.make_render_ctx(None, min_size);
+            let mut render_ctx = self.make_render_ctx(RenderParams {
+                paint: None,
+                base_size: min_size,
+            });
             let doc_size = self.render_document(&mut render_ctx, &*document);
             debug!("Document size: {}", doc_size);
             Size::new(
@@ -275,7 +286,10 @@ impl Widget<AppState> for WebRenderer {
         if let Some(document) = &data.document {
             // Perform a render pass over the document
             let size = ctx.size();
-            let mut render_ctx = self.make_render_ctx(Some(ctx), size);
+            let mut render_ctx = self.make_render_ctx(RenderParams {
+                paint: Some(ctx),
+                base_size: size,
+            });
             self.render_document(&mut render_ctx, &*document);
         }
     }
