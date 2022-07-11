@@ -9,8 +9,8 @@ pub fn bar_widget() -> impl Widget<AppState> {
         .with_child(
             Submit::new(
                 TextBox::new()
-                    .with_placeholder("Enter URL...")
-                    .lens(AppState::url)
+                    .with_placeholder("Enter URL or search query...")
+                    .lens(AppState::bar_query)
                     .fix_width(500.0)
             )
             .on_enter(|data: &mut AppState| data.perform(|data| {

@@ -1,23 +1,27 @@
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}};
 
 use crate::{model::dom::Document, parse::html, network::Session, error::Result};
 use druid::{Data, Lens};
 use log::error;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use reqwest::Url;
 
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
-    pub url: Arc<String>,
+    pub bar_query: Arc<String>,
     pub parser: Arc<html::Parser>,
     pub session: Arc<Mutex<Session>>,
     pub document: Option<Arc<Document>>,
 }
 
+static SEARCH_QUERY: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[^\s\.:\[\]]+(?:\s+\S.*)?$").unwrap());
+
 impl AppState {
     /// (Re)loads the document.
     pub fn reload(&mut self) -> Result<()> {
-        let url = Self::parse_url(self.url.as_str())?;
-        self.url = Arc::new(url.to_string());
+        let url = Self::parse_bar_query(self.bar_query.as_str())?;
+        self.bar_query = Arc::new(url.to_string());
         let raw = self.session.lock().unwrap().get_text(url)?;
         let doc = self.parser.parse(raw.as_str())?;
         self.document = Some(Arc::new(doc));
@@ -32,16 +36,20 @@ impl AppState {
         }
     }
 
-    /// Parses a URL.
-    fn parse_url(url: &str) -> Result<Url> {
-        Ok(Url::parse(url).or_else(|e| match e {
+    /// Parses an address bar query.
+    fn parse_bar_query(query: &str) -> Result<Url> {
+        let url_result = if SEARCH_QUERY.is_match(query) {
+            Url::parse_with_params("https://www.google.com/search", &[("q", query)])
+        } else {
+            Url::parse(query)
+        };
+        Ok(url_result.or_else(|e| match e {
             url::ParseError::RelativeUrlWithoutBase => {
-                // TODO: Google if the address doesn't look like a URL or file path?
                 // TODO: Windows paths?
-                let fallback = if url.starts_with("/") {
-                    format!("file://{}", url)
+                let fallback = if query.starts_with("/") {
+                    format!("file://{}", query)
                 } else {
-                    format!("https://{}", url)
+                    format!("https://{}", query)
                 };
                 Url::parse(fallback.as_str())
             },

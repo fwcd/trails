@@ -24,7 +24,7 @@ fn main() {
         .window_size((800.0, 600.0));
 
     let initial_state = AppState {
-        url: Arc::new("https://en.wikipedia.org".to_owned()),
+        bar_query: Arc::new("https://en.wikipedia.org".to_owned()),
         parser: Arc::new(html::Parser::default()),
         session: Arc::new(Mutex::new(Session::default())),
         document: None,
