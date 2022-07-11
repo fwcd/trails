@@ -1776,6 +1776,7 @@ dependencies = [
  "regex",
  "reqwest",
  "simple_logger",
+ "url",
 ]
 
 [[package]]
