@@ -205,7 +205,7 @@ impl WebRenderer {
                 // Update window title if we have a paint context.
                 if let Some(paint) = &ctx.paint {
                     let title = element.text();
-                    info!("Setting title to '{}'", title);
+                    info!("Setting title to '{}'", title.trim());
                     paint.window().set_title(&title);
                 }
                 Size::ZERO
