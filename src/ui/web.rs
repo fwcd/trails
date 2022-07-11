@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight, MouseEvent};
 use log::{debug, trace, info};
@@ -306,10 +306,17 @@ impl Widget<AppState> for WebRenderer {
         match event {
             Event::MouseUp(e) => {
                 let point = e.pos;
+
                 // Find the clicked link area
                 if let Some(area) = self.link_areas.as_ref().and_then(|l| l.areas.iter().find(|a| a.area.contains(point)).cloned()) {
                     info!("Clicked {:?}", area);
-                    // TODO
+
+                    // Resolve the (possibly relative) URL
+                    if let Ok(url) = data.url().and_then(|base| Ok(base.join(&area.href)?)) {
+                        data.bar_query = Arc::new(url.to_string());
+                        data.perform(|data| data.reload());
+                    }
+
                     ctx.set_handled();
                 }
             },

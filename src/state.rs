@@ -20,7 +20,7 @@ static SEARCH_QUERY: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[^\s\.:\[\]]+(?:\s
 impl AppState {
     /// (Re)loads the document.
     pub fn reload(&mut self) -> Result<()> {
-        let url = Self::parse_bar_query(self.bar_query.as_str())?;
+        let url = self.url()?;
         self.bar_query = Arc::new(url.to_string());
         let raw = self.session.lock().unwrap().get_text(url)?;
         let doc = self.parser.parse(raw.as_str())?;
@@ -36,8 +36,9 @@ impl AppState {
         }
     }
 
-    /// Parses an address bar query.
-    fn parse_bar_query(query: &str) -> Result<Url> {
+    /// Fetches the parsed URL from the address bar.
+    pub fn url(&self) -> Result<Url> {
+        let query = self.bar_query.as_str();
         let url_result = if SEARCH_QUERY.is_match(query) {
             Url::parse_with_params("https://www.google.com/search", &[("q", query)])
         } else {
