@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
-use log::debug;
+use log::{debug, info, trace};
 use once_cell::sync::Lazy;
 
 use crate::{state::AppState, model::dom::{Node, Element, Document}};
@@ -102,7 +102,7 @@ impl WebRenderer {
     }
 
     /// Renders a DOM document.
-    fn render_document(&self, ctx: &mut RenderCtx, document: &Document) {
+    fn render_document(&self, ctx: &mut RenderCtx, document: &Document) -> Size {
         // Draw background
         if let Some(paint) = &mut ctx.paint {
             let size = paint.size();
@@ -110,11 +110,11 @@ impl WebRenderer {
         }
 
         // Render the tree
-        self.render_element(ctx, document.root());
+        self.render_element(ctx, document.root())
     }
 
     /// Renders a single DOM node.
-    fn render_node(&self, ctx: &mut RenderCtx, node: &Node) {
+    fn render_node(&self, ctx: &mut RenderCtx, node: &Node) -> Size {
         match node {
             Node::Element(element) => self.render_element(ctx, element),
             Node::Text(text) => self.render_text(ctx, text),
@@ -122,9 +122,14 @@ impl WebRenderer {
     }
 
     /// Renders a single DOM element.
-    fn render_element(&self, ctx: &mut RenderCtx, node: &Element) {
+    fn render_element(&self, ctx: &mut RenderCtx, node: &Element) -> Size {
         if RENDERED_TAGS.contains(node.tag_name()) {
+            // TODO: It would probably be better to just pass a cloned context
+            //       to the child, the borrow-checker however complains about
+            //       the mutable reference to the paint context in that case.
+            let old_point = ctx.point;
             let old_styling = ctx.styling.clone();
+            let mut size = Size::ZERO;
 
             // Change styling info as needed
             match node.tag_name() {
@@ -142,17 +147,24 @@ impl WebRenderer {
 
             // Render children
             for child in node.children() {
-                self.render_node(ctx, child)
+                let child_size = self.render_node(ctx, child);
+                size.width = size.width.max(child_size.width);
+                size.height += child_size.height;
+                ctx.point.y += child_size.height;
             }
 
+            ctx.point = old_point;
             ctx.styling = old_styling;
+            trace!("<{}> has size {}", node.tag_name(), size);
+            size
         } else {
             debug!("Not rendering <{}>", node.tag_name());
+            Size::ZERO
         }
     }
 
     /// Renders some text from the DOM.
-    fn render_text(&self, ctx: &mut RenderCtx, text: &str) {
+    fn render_text(&self, ctx: &mut RenderCtx, text: &str) -> Size {
         if let Some(paint) = &mut ctx.paint {
             // We are painting
             let layout = paint.text()
@@ -163,47 +175,46 @@ impl WebRenderer {
                 .build()
                 .expect("Could not construct text layout"); // TODO: Better error handling
             paint.draw_text(&layout, ctx.point);
-            ctx.point.y += layout.size().height;
+            layout.size()
         } else {
             // We are just layouting
-            ctx.point.y += ctx.styling.font_size;
+            // TODO: Use a more accurate heuristic for determining the text size
+            let font_size = ctx.styling.font_size;
+            Size::new(text.len() as f64 * font_size * 0.45, font_size)
         }
     }
 }
 
 impl Widget<AppState> for WebRenderer {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, env: &Env) {
+    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut AppState, _env: &Env) {
         
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppState, env: &Env) {
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) {
         
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, env: &Env) {
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {
         
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, _env: &Env) -> Size {
         let min_size = bc.min();
         if let Some(document) = &data.document {
             // Perform a render pass without a paint context to determine the document's size
             let mut render_ctx = self.make_render_ctx(None);
-            self.render_document(&mut render_ctx, &*document);
-            // Compute size 
-            // TODO: Using the final point is not a super-accurate heuristic for determining the rendered,
-            //       we should keep track of a 'maximum' point during the render pass (which e.g. also should
-            //       consider text width etc.)
+            let doc_size = self.render_document(&mut render_ctx, &*document);
+            info!("Document size: {}", doc_size);
             Size::new(
-                min_size.width.max(render_ctx.point.x),
-                min_size.height.max(render_ctx.point.y),
+                min_size.width.max(doc_size.width),
+                min_size.height.max(doc_size.height),
             )
         } else {
             min_size
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
         if let Some(document) = &data.document {
             // Perform a render pass over the document
             let mut render_ctx = self.make_render_ctx(Some(ctx));

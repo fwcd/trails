@@ -11,7 +11,6 @@ pub fn app_widget() -> impl Widget<AppState> {
         .with_flex_child(
             Tighten::new(
                 Scroll::new(content_widget())
-                    .vertical()
                     .content_must_fill(true)
             ),
             1.0
