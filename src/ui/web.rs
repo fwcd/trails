@@ -1,12 +1,10 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 
-use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
-use log::{debug, trace};
+use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight, MouseEvent};
+use log::{debug, trace, info};
 use once_cell::sync::Lazy;
 
 use crate::{state::AppState, model::dom::{Node, Element, Document}};
-
-pub struct WebRenderer;
 
 /// Styling info used during a DOM rendering pass.
 #[derive(Clone)] // TODO: Derive `Copy` once https://github.com/linebender/piet/pull/524 is merged
@@ -29,12 +27,30 @@ struct RenderParams<'a, 'b, 'c, 'd> {
     base_size: Size,
 }
 
+/// A clickable area on the page.
+#[derive(Debug, Clone, PartialEq)]
+struct LinkArea {
+    /// The clickable area.
+    area: Rect,
+    /// The link target.
+    href: String,
+}
+
+/// Link areas on the page.
+// TODO: Move to a separate file?
+// TODO: Explore using a more efficient data structure, e.g. a quadtree
+#[derive(Clone)]
+struct LinkAreas {
+    /// A list of (clickable) link areas.
+    areas: Vec<LinkArea>,
+}
+
 /// Results from the rendering pass.
 struct RenderResult {
     /// The rendered size of the document.
     size: Size,
-    /// A map of (clickable) rectangles to link targets (usually URLs).
-    link_areas: HashMap<Rect, String>,
+    /// The clickable link areas.
+    link_areas: LinkAreas,
 }
 
 /// Internal paint state during a rendering pass that may change for a child
@@ -56,10 +72,16 @@ struct RenderCursor {
 struct RenderCtx<'a, 'b, 'c, 'd> {
     /// The paint context, if painting.
     paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
-    /// A map of (clickable) rectangles to link targets (usually URLs).
-    link_areas: HashMap<Rect, String>,
+    /// The clickable link areas.
+    link_areas: LinkAreas,
     /// The paint state.
     cursor: RenderCursor,
+}
+
+/// A widget that renders HTML markup.
+pub struct WebRenderer {
+    /// The clickable link areas from the last render.
+    link_areas: Option<LinkAreas>,
 }
 
 static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
@@ -117,7 +139,9 @@ static INLINE_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
 
 impl WebRenderer {
     pub fn new() -> Self {
-        Self
+        Self {
+            link_areas: None,
+        }
     }
 
     /// Creates a new render context with the default settings.
@@ -125,7 +149,9 @@ impl WebRenderer {
         let font_size = 12.0;
         RenderCtx {
             paint: params.paint,
-            link_areas: HashMap::new(),
+            link_areas: LinkAreas {
+                areas: Vec::new()
+            },
             cursor: RenderCursor {
                 base_point: Point::ZERO,
                 base_size: params.base_size,
@@ -170,15 +196,15 @@ impl WebRenderer {
     }
 
     /// Renders a single DOM element.
-    fn render_element(&self, ctx: &mut RenderCtx, node: &Element) -> Size {
-        if RENDERED_TAGS.contains(node.tag_name()) {
+    fn render_element(&self, ctx: &mut RenderCtx, element: &Element) -> Size {
+        if RENDERED_TAGS.contains(element.tag_name()) {
             let start_cursor = ctx.cursor.clone();
             let mut size = Size::ZERO;
 
             // Change styling info as needed
             {
                 let mut styling = &mut ctx.cursor.styling;
-                match node.tag_name() {
+                match element.tag_name() {
                     "b" | "strong" => styling.font_weight = FontWeight::BOLD,
                     "h1" => styling.font_size = 32.0,
                     "h2" => styling.font_size = 26.0,
@@ -187,14 +213,14 @@ impl WebRenderer {
                     "a" => styling.color = Color::BLUE,
                     _ => {},
                 }
-                if node.is_heading() {
+                if element.is_heading() {
                     styling.font_weight = FontWeight::BOLD;
                 }
             }
 
             // Render children
             let mut line_size = Size::ZERO;
-            for child in node.children() {
+            for child in element.children() {
                 // Check whether this is an inline tag
                 let is_inline = child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t));
                 // Render spacing if we have adjacent inline elements
@@ -202,7 +228,21 @@ impl WebRenderer {
                     ctx.cursor.point.x += ctx.cursor.styling.spacing;
                 }
                 // Render the child element, which computes its size
+                let child_point = ctx.cursor.point;
                 let child_size = self.render_node(ctx, child);
+                // Insert links into the link target map.
+                match child {
+                    Node::Element(child_elem) if child_elem.tag_name() == "a" => {
+                        if let Some(href) = child_elem.attribute("href") {
+                            let child_rect = Rect::from_origin_size(child_point, child_size);
+                            ctx.link_areas.areas.push(LinkArea {
+                                area: child_rect,
+                                href: href.to_owned(),
+                            });
+                        }
+                    },
+                    _ => {},
+                }
                 // Depending on whether this is an inline tag and whether we are past the
                 // container size we decide whether we should break the line.
                 let relative_pos = ctx.cursor.point - ctx.cursor.base_point;
@@ -230,10 +270,10 @@ impl WebRenderer {
             }
 
             ctx.cursor = start_cursor;
-            trace!("<{}> has size {}", node.tag_name(), size);
+            trace!("<{}> has size {}", element.tag_name(), size);
             size
         } else {
-            debug!("Not rendering <{}>", node.tag_name());
+            debug!("Not rendering <{}>", element.tag_name());
             Size::ZERO
         }
     }
@@ -262,8 +302,19 @@ impl WebRenderer {
 }
 
 impl Widget<AppState> for WebRenderer {
-    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut AppState, _env: &Env) {
-        
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
+        match event {
+            Event::MouseUp(e) => {
+                let point = e.pos;
+                // Find the clicked link area
+                if let Some(area) = self.link_areas.as_ref().and_then(|l| l.areas.iter().find(|a| a.area.contains(point)).cloned()) {
+                    info!("Clicked {:?}", area);
+                    // TODO
+                    ctx.set_handled();
+                }
+            },
+            _ => {},
+        }
     }
 
     fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) {
@@ -301,12 +352,15 @@ impl Widget<AppState> for WebRenderer {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
         if let Some(document) = &data.document {
-            // Perform a render pass over the document
             let size = ctx.size();
-            self.render_document(RenderParams {
+
+            // Perform a render pass over the document
+            let result = self.render_document(RenderParams {
                 paint: Some(ctx),
                 base_size: size,
             }, &*document);
+
+            self.link_areas = Some(result.link_areas);
         }
     }
 }

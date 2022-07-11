@@ -85,6 +85,11 @@ impl Element {
         self.children.iter()
     }
 
+    /// Fetches an attribute.
+    pub fn attribute(&self, key: &str) -> Option<&str> {
+        self.attributes.get(key).map(|s| s.as_str())
+    }
+
     /// Adds a new child to the element.
     pub fn add_child(&mut self, child: Node) {
         self.children.push(child);
