@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use druid::{Widget, widget::{Flex, Scroll, IntrinsicWidth, CrossAxisAlignment, ClipBox}, WidgetExt};
+use druid::{Widget, widget::{Flex, Scroll}};
 
 use super::{bar_widget, content_widget, Tighten};
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
 use log::debug;
