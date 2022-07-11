@@ -234,11 +234,6 @@ impl WebRenderer {
                     }
                 }
 
-                // Update window title as needed
-                if element.tag_name() == "title" {
-                    
-                }
-
                 // Render children
                 let mut line_size = Size::ZERO;
                 for child in element.children() {
