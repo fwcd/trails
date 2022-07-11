@@ -16,7 +16,8 @@ pub struct AppState {
 impl AppState {
     /// (Re)loads the document.
     pub fn reload(&mut self) -> Result<()> {
-        let url = Url::parse(self.url.as_str())?;
+        let url = Self::parse_url(self.url.as_str())?;
+        self.url = Arc::new(url.to_string());
         let raw = self.session.lock().unwrap().get_text(url)?;
         let doc = self.parser.parse(raw.as_str())?;
         self.document = Some(Arc::new(doc));
@@ -29,5 +30,22 @@ impl AppState {
             // TODO: Better error-handling, perhaps store the error message in the state?
             error!("Error: {:?}", e);
         }
+    }
+
+    /// Parses a URL.
+    fn parse_url(url: &str) -> Result<Url> {
+        Ok(Url::parse(url).or_else(|e| match e {
+            url::ParseError::RelativeUrlWithoutBase => {
+                // TODO: Google if the address doesn't look like a URL or file path?
+                // TODO: Windows paths?
+                let fallback = if url.starts_with("/") {
+                    format!("file://{}", url)
+                } else {
+                    format!("https://{}", url)
+                };
+                Url::parse(fallback.as_str())
+            },
+            _ => Err(e)
+        })?)
     }
 }
