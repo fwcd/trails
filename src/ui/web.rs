@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
-use log::{info, warn};
+use log::debug;
 use once_cell::sync::Lazy;
 
 use crate::{state::AppState, model::dom::{Node, Element, Document}};
@@ -21,8 +21,8 @@ struct Styling {
 
 /// State used during a DOM rendering pass.
 struct RenderCtx<'a, 'b, 'c, 'd> {
-    /// The paint context.
-    paint: &'a mut PaintCtx<'b, 'c, 'd>,
+    /// The paint context, if painting.
+    paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
     /// The current (top-left) point at which to paint.
     point: Point,
     /// Styling info.
@@ -88,11 +88,26 @@ impl WebRenderer {
         Self
     }
 
+    /// Creates a new render context with the default settings.
+    fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>) -> RenderCtx<'a, 'b, 'c, 'd> {
+        RenderCtx {
+            paint,
+            point: Point::ZERO,
+            styling: Styling {
+                font_size: 12.0,
+                font_weight: FontWeight::REGULAR,
+                color: Color::BLACK,
+            },
+        }
+    }
+
     /// Renders a DOM document.
     fn render_document(&self, ctx: &mut RenderCtx, document: &Document) {
         // Draw background
-        let size = ctx.paint.size();
-        ctx.paint.fill(Rect::from_origin_size(Point::ZERO, size), &Color::WHITE);
+        if let Some(paint) = &mut ctx.paint {
+            let size = paint.size();
+            paint.fill(Rect::from_origin_size(Point::ZERO, size), &Color::WHITE);
+        }
 
         // Render the tree
         self.render_element(ctx, document.root());
@@ -132,21 +147,27 @@ impl WebRenderer {
 
             ctx.styling = old_styling;
         } else {
-            warn!("Not rendering <{}>", node.tag_name());
+            debug!("Not rendering <{}>", node.tag_name());
         }
     }
 
     /// Renders some text from the DOM.
     fn render_text(&self, ctx: &mut RenderCtx, text: &str) {
-        let layout = ctx.paint.text()
-            .new_text_layout(text.to_owned())
-            .font(FontFamily::SERIF, ctx.styling.font_size)
-            .default_attribute(ctx.styling.font_weight)
-            .text_color(ctx.styling.color.clone())
-            .build()
-            .expect("Could not construct text layout"); // TODO: Better error handling
-        ctx.paint.draw_text(&layout, ctx.point);
-        ctx.point.y += layout.size().height;
+        if let Some(paint) = &mut ctx.paint {
+            // We are painting
+            let layout = paint.text()
+                .new_text_layout(text.to_owned())
+                .font(FontFamily::SERIF, ctx.styling.font_size)
+                .default_attribute(ctx.styling.font_weight)
+                .text_color(ctx.styling.color.clone())
+                .build()
+                .expect("Could not construct text layout"); // TODO: Better error handling
+            paint.draw_text(&layout, ctx.point);
+            ctx.point.y += layout.size().height;
+        } else {
+            // We are just layouting
+            ctx.point.y += ctx.styling.font_size;
+        }
     }
 }
 
@@ -164,21 +185,28 @@ impl Widget<AppState> for WebRenderer {
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
-        // TODO: Proper minimum height
-        Size::new(bc.max().width, 500.0)
+        let min_size = bc.min();
+        if let Some(document) = &data.document {
+            // Perform a render pass without a paint context to determine the document's size
+            let mut render_ctx = self.make_render_ctx(None);
+            self.render_document(&mut render_ctx, &*document);
+            // Compute size 
+            // TODO: Using the final point is not a super-accurate heuristic for determining the rendered,
+            //       we should keep track of a 'maximum' point during the render pass (which e.g. also should
+            //       consider text width etc.)
+            Size::new(
+                min_size.width.max(render_ctx.point.x),
+                min_size.height.max(render_ctx.point.y),
+            )
+        } else {
+            min_size
+        }
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, env: &Env) {
         if let Some(document) = &data.document {
-            let mut render_ctx = RenderCtx {
-                paint: ctx,
-                point: Point::ZERO,
-                styling: Styling {
-                    font_size: 12.0,
-                    font_weight: FontWeight::REGULAR,
-                    color: Color::BLACK,
-                },
-            };
+            // Perform a render pass over the document
+            let mut render_ctx = self.make_render_ctx(Some(ctx));
             self.render_document(&mut render_ctx, &*document);
         }
     }

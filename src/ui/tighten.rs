@@ -1,5 +1,7 @@
-use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight, Data};
+use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, Data};
 
+/// A simple container that passes tight `BoxConstraints` based on
+/// the maximum size to its child.
 pub struct Tighten<W> {
     child: W
 }
