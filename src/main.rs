@@ -19,7 +19,7 @@ use ui::app_widget;
 fn main() {
     SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-    let window = WindowDesc::new(app_widget)
+    let window = WindowDesc::new(app_widget())
         .title("Trails")
         .window_size((800.0, 600.0));
 
