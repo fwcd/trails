@@ -21,7 +21,7 @@ struct Styling {
     spacing: f64,
 }
 
-/// Parameters to pass to the renderer.
+/// Parameters to pass to the (top-level) renderer.
 struct RenderParams<'a, 'b, 'c, 'd> {
     /// The paint context, if painting.
     paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
@@ -29,7 +29,14 @@ struct RenderParams<'a, 'b, 'c, 'd> {
     base_size: Size,
 }
 
-/// The rendering state.
+/// Results from the rendering pass.
+struct RenderResult {
+    /// The rendered size of the document.
+    size: Size,
+}
+
+/// The internal state during a rendering pass that may change for a child
+/// (and thus is cloneable).
 #[derive(Clone)]
 struct RenderState {
     /// The size of the current layout container.
@@ -129,7 +136,7 @@ impl WebRenderer {
     }
 
     /// Renders a DOM document.
-    fn render_document(&self, ctx: &mut RenderCtx, document: &Document) -> Size {
+    fn render_document(&self, ctx: &mut RenderCtx, document: &Document) -> RenderResult {
         // Draw background
         if let Some(paint) = &mut ctx.paint {
             let size = paint.size();
@@ -137,7 +144,12 @@ impl WebRenderer {
         }
 
         // Render the tree
-        self.render_element(ctx, document.root())
+        let size = self.render_element(ctx, document.root());
+
+        // Aggregate results from the rendering pass
+        RenderResult {
+            size,
+        }
     }
 
     /// Renders a single DOM node.
@@ -271,11 +283,11 @@ impl Widget<AppState> for WebRenderer {
                 paint: None,
                 base_size: min_size,
             });
-            let doc_size = self.render_document(&mut render_ctx, &*document);
-            debug!("Document size: {}", doc_size);
+            let result = self.render_document(&mut render_ctx, &*document);
+            debug!("Document size: {}", result.size);
             Size::new(
-                min_size.width.max(doc_size.width),
-                min_size.height.max(doc_size.height),
+                min_size.width.max(result.size.width),
+                min_size.height.max(result.size.height),
             )
         } else {
             min_size
