@@ -1,7 +1,8 @@
-use std::{str::Bytes, fs};
+use std::fs;
 
 use log::info;
-use reqwest::{blocking::{Client, Response}, header::USER_AGENT, Url};
+use reqwest::{blocking::Client, header::USER_AGENT};
+use url::Url;
 
 use crate::{constants::VERSION, error::{Result, Error}};
 
@@ -23,10 +24,9 @@ impl Default for Session {
 
 impl Session {
     /// Performs a GET request to the given URL.
-    fn get(&mut self, url: &str) -> Result<Vec<u8>> {
+    fn get(&mut self, url: Url) -> Result<Vec<u8>> {
         info!("Getting {}", url);
         // TODO: Async
-        let url = Url::parse(url)?;
         match url.scheme() {
             "http" | "https" => {
                 // Fetch document via HTTP
@@ -48,7 +48,7 @@ impl Session {
     }
 
     /// Fetches a string via a GET request.
-    pub fn get_text(&mut self, url: &str) -> Result<String> {
+    pub fn get_text(&mut self, url: Url) -> Result<String> {
         Ok(String::from_utf8(self.get(url)?)?)
     }
 }

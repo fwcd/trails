@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{model::dom::Document, parse::html, network::Session};
+use crate::{model::dom::Document, parse::html, network::Session, error::Result};
 use druid::{Data, Lens};
 use log::error;
+use reqwest::Url;
 
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
@@ -14,13 +15,19 @@ pub struct AppState {
 
 impl AppState {
     /// (Re)loads the document.
-    pub fn reload(&mut self) {
-        // TODO: Better error-handling, perhaps store the error message in the state?
-        let doc = self.session.lock().unwrap().get_text(self.url.as_str())
-            .and_then(|raw| self.parser.parse(raw.as_str()));
-        match doc {
-            Ok(doc) => self.document = Some(Arc::new(doc)),
-            Err(e) => error!("Error while fetching/parsing HTML: {:?}", e),
-        };
+    pub fn reload(&mut self) -> Result<()> {
+        let url = Url::parse(self.url.as_str())?;
+        let raw = self.session.lock().unwrap().get_text(url)?;
+        let doc = self.parser.parse(raw.as_str())?;
+        self.document = Some(Arc::new(doc));
+        Ok(())
+    }
+
+    /// Performs a potentially erroring computation.
+    pub fn perform(&mut self, result: impl FnOnce(&mut Self) -> Result<()>) {
+        if let Err(e) = result(self) {
+            // TODO: Better error-handling, perhaps store the error message in the state?
+            error!("Error: {:?}", e);
+        }
     }
 }

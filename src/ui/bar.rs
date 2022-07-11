@@ -13,15 +13,15 @@ pub fn bar_widget() -> impl Widget<AppState> {
                     .lens(AppState::url)
                     .fix_width(500.0)
             )
-            .on_enter(|data: &mut AppState| {
-                data.reload();
-            })
+            .on_enter(|data: &mut AppState| data.perform(|data| {
+                data.reload()
+            }))
         )
         .with_child(
             Button::new("Visit")
-                .on_click(|_ctx, data: &mut AppState, _env| {
-                    data.reload();
-                })
+                .on_click(|_ctx, data: &mut AppState, _env| data.perform(|data| {
+                    data.reload()
+                }))
         )
         .padding(10.0)
 }
