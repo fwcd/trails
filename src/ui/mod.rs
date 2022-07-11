@@ -6,8 +6,9 @@ mod tighten;
 mod web;
 
 pub use app::*;
-pub use bar::*;
-pub use content::*;
-pub use submit::*;
-pub use tighten::*;
 pub use web::*;
+
+pub(crate) use bar::*;
+pub(crate) use content::*;
+pub(crate) use submit::*;
+pub(crate) use tighten::*;

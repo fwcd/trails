@@ -1,4 +1,4 @@
-use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, Data, Key, Modifiers, Code};
+use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, Data, Code};
 
 /// A simple container handles enter events.
 pub struct Submit<W, D> {
