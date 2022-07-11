@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
 use log::{debug, trace};
@@ -33,12 +33,14 @@ struct RenderParams<'a, 'b, 'c, 'd> {
 struct RenderResult {
     /// The rendered size of the document.
     size: Size,
+    /// A map of (clickable) rectangles to link targets (usually URLs).
+    link_areas: HashMap<Rect, String>,
 }
 
-/// The internal state during a rendering pass that may change for a child
+/// Internal paint state during a rendering pass that may change for a child
 /// (and thus is cloneable).
 #[derive(Clone)]
-struct RenderState {
+struct RenderCursor {
     /// The size of the current layout container.
     base_size: Size,
     /// The current (top-left) point of the current layout container
@@ -50,12 +52,14 @@ struct RenderState {
     styling: Styling,
 }
 
-/// State used during a DOM rendering pass.
+/// Internal state used during a DOM rendering pass.
 struct RenderCtx<'a, 'b, 'c, 'd> {
     /// The paint context, if painting.
     paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
-    /// The rendering state.
-    state: RenderState,
+    /// A map of (clickable) rectangles to link targets (usually URLs).
+    link_areas: HashMap<Rect, String>,
+    /// The paint state.
+    cursor: RenderCursor,
 }
 
 static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
@@ -121,7 +125,8 @@ impl WebRenderer {
         let font_size = 12.0;
         RenderCtx {
             paint: params.paint,
-            state: RenderState {
+            link_areas: HashMap::new(),
+            cursor: RenderCursor {
                 base_point: Point::ZERO,
                 base_size: params.base_size,
                 point: Point::ZERO,
@@ -136,7 +141,10 @@ impl WebRenderer {
     }
 
     /// Renders a DOM document.
-    fn render_document(&self, ctx: &mut RenderCtx, document: &Document) -> RenderResult {
+    fn render_document(&self, params: RenderParams, document: &Document) -> RenderResult {
+        // Create a rendering context.
+        let mut ctx = self.make_render_ctx(params);
+
         // Draw background
         if let Some(paint) = &mut ctx.paint {
             let size = paint.size();
@@ -144,11 +152,12 @@ impl WebRenderer {
         }
 
         // Render the tree
-        let size = self.render_element(ctx, document.root());
+        let size = self.render_element(&mut ctx, document.root());
 
         // Aggregate results from the rendering pass
         RenderResult {
             size,
+            link_areas: ctx.link_areas,
         }
     }
 
@@ -163,15 +172,12 @@ impl WebRenderer {
     /// Renders a single DOM element.
     fn render_element(&self, ctx: &mut RenderCtx, node: &Element) -> Size {
         if RENDERED_TAGS.contains(node.tag_name()) {
-            // TODO: It would probably be better to just pass a cloned context
-            //       to the child, the borrow-checker however complains about
-            //       the mutable reference to the paint context in that case.
-            let start_state = ctx.state.clone();
+            let start_cursor = ctx.cursor.clone();
             let mut size = Size::ZERO;
 
             // Change styling info as needed
             {
-                let mut styling = &mut ctx.state.styling;
+                let mut styling = &mut ctx.cursor.styling;
                 match node.tag_name() {
                     "b" | "strong" => styling.font_weight = FontWeight::BOLD,
                     "h1" => styling.font_size = 32.0,
@@ -193,29 +199,29 @@ impl WebRenderer {
                 let is_inline = child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t));
                 // Render spacing if we have adjacent inline elements
                 if is_inline && line_size != Size::ZERO {
-                    ctx.state.point.x += ctx.state.styling.spacing;
+                    ctx.cursor.point.x += ctx.cursor.styling.spacing;
                 }
                 // Render the child element, which computes its size
                 let child_size = self.render_node(ctx, child);
                 // Depending on whether this is an inline tag and whether we are past the
                 // container size we decide whether we should break the line.
-                let relative_pos = ctx.state.point - ctx.state.base_point;
-                let break_line = !is_inline || relative_pos.x + child_size.width >= ctx.state.base_size.width;
+                let relative_pos = ctx.cursor.point - ctx.cursor.base_point;
+                let break_line = !is_inline || relative_pos.x + child_size.width >= ctx.cursor.base_size.width;
                 if break_line {
                     line_size.width = line_size.width.max(child_size.width);
                     line_size.height = line_size.height.max(child_size.height);
                     size.width = size.width.max(line_size.width);
                     size.height += line_size.height;
                     // Jump to next line
-                    ctx.state.point.x = ctx.state.base_point.x;
-                    ctx.state.point.y += line_size.height;
+                    ctx.cursor.point.x = ctx.cursor.base_point.x;
+                    ctx.cursor.point.y += line_size.height;
                     line_size = Size::ZERO;
                 } else {
                     let width_delta = child_size.width;
                     line_size.width += width_delta;
                     line_size.height = line_size.height.max(child_size.height);
                     // Move 'cursor' forward on this line
-                    ctx.state.point.x += width_delta;
+                    ctx.cursor.point.x += width_delta;
                 }
             }
             if line_size != Size::ZERO {
@@ -223,7 +229,7 @@ impl WebRenderer {
                 size.height += line_size.height;
             }
 
-            ctx.state = start_state;
+            ctx.cursor = start_cursor;
             trace!("<{}> has size {}", node.tag_name(), size);
             size
         } else {
@@ -234,7 +240,7 @@ impl WebRenderer {
 
     /// Renders some text from the DOM.
     fn render_text(&self, ctx: &mut RenderCtx, text: &str) -> Size {
-        let state = &ctx.state;
+        let state = &ctx.cursor;
         if let Some(paint) = &mut ctx.paint {
             // We are painting
             let layout = paint.text()
@@ -279,11 +285,10 @@ impl Widget<AppState> for WebRenderer {
         let min_size = bc.min();
         if let Some(document) = &data.document {
             // Perform a render pass without a paint context to determine the document's size
-            let mut render_ctx = self.make_render_ctx(RenderParams {
+            let result = self.render_document(RenderParams {
                 paint: None,
                 base_size: min_size,
-            });
-            let result = self.render_document(&mut render_ctx, &*document);
+            }, &*document);
             debug!("Document size: {}", result.size);
             Size::new(
                 min_size.width.max(result.size.width),
@@ -298,11 +303,10 @@ impl Widget<AppState> for WebRenderer {
         if let Some(document) = &data.document {
             // Perform a render pass over the document
             let size = ctx.size();
-            let mut render_ctx = self.make_render_ctx(RenderParams {
+            self.render_document(RenderParams {
                 paint: Some(ctx),
                 base_size: size,
-            });
-            self.render_document(&mut render_ctx, &*document);
+            }, &*document);
         }
     }
 }
