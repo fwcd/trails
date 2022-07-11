@@ -17,6 +17,8 @@ struct Styling {
     font_weight: FontWeight,
     /// The color to render text with.
     color: Color,
+    /// The default spacing to render between inline elements.
+    spacing: f64,
 }
 
 /// The rendering state.
@@ -99,15 +101,17 @@ impl WebRenderer {
 
     /// Creates a new render context with the default settings.
     fn make_render_ctx<'a, 'b, 'c, 'd>(&'a self, paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>) -> RenderCtx<'a, 'b, 'c, 'd> {
+        let font_size = 12.0;
         RenderCtx {
             paint,
             state: RenderState {
                 base_point: Point::ZERO,
                 point: Point::ZERO,
                 styling: Styling {
-                    font_size: 12.0,
+                    font_size,
                     font_weight: FontWeight::REGULAR,
                     color: Color::BLACK,
+                    spacing: font_size * 0.45,
                 },
             },
         }
@@ -162,13 +166,21 @@ impl WebRenderer {
             // Render children
             let mut line_size = Size::ZERO;
             for child in node.children() {
+                // Check whether this is an inline tag
+                let is_inline = child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t));
+                // Render spacing if we have adjacent inline elements
+                if is_inline && line_size != Size::ZERO {
+                    ctx.state.point.x += ctx.state.styling.spacing;
+                }
+                // Render the child element, which computes its size
                 let child_size = self.render_node(ctx, child);
-                // Check whether this is an inline tag to determine if we need to break
-                if child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t)) {
-                    line_size.width += child_size.width;
+                // Depending on whether this is an inline tag we should either break or not
+                if is_inline {
+                    let width_delta = child_size.width;
+                    line_size.width += width_delta;
                     line_size.height = line_size.height.max(child_size.height);
-                    // Move 'cursor' forward
-                    ctx.state.point.x += child_size.width;
+                    // Move 'cursor' forward on this line
+                    ctx.state.point.x += width_delta;
                 } else {
                     line_size.width = line_size.width.max(child_size.width);
                     line_size.height = line_size.height.max(child_size.height);
