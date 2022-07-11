@@ -5,13 +5,20 @@ use log::error;
 
 use crate::state::AppState;
 
+use super::Submit;
+
 pub fn bar_widget() -> impl Widget<AppState> {
     Flex::row()
         .with_child(
-            TextBox::new()
-                .with_placeholder("Enter URL...")
-                .lens(AppState::url)
-                .fix_width(500.0)
+            Submit::new(
+                TextBox::new()
+                    .with_placeholder("Enter URL...")
+                    .lens(AppState::url)
+                    .fix_width(500.0)
+            )
+            .on_enter(|data: &mut AppState| {
+                println!("Pressed enter");
+            })
         )
         .with_child(
             Button::new("Visit")
