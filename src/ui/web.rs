@@ -244,8 +244,15 @@ impl Widget<AppState> for WebRenderer {
         
     }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {
-        
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, _env: &Env) {
+        // TODO: Is this comparison inefficient? Would Arc::ptr_eq be sufficient since we never
+        //       mutate within the Arc (probably 'unsafe' in the sense that it wouldn't trigger
+        //       repaints if we don't uphold this invariant). Should we perhaps store an
+        //       (e.g. randomly-generated) version identifier or a hash in the document?
+        if old_data.document != data.document {
+            ctx.request_layout();
+            ctx.request_paint();
+        }
     }
 
     fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, _env: &Env) -> Size {
