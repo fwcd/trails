@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, borrow::Cow};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -39,6 +39,14 @@ impl Node {
             _ => None,
         }
     }
+
+    /// The combined text under this tree. Cheap if this is a text node.
+    pub fn text(&self) -> Cow<str> {
+        match self {
+            Node::Text(text) => Cow::Borrowed(text),
+            Node::Element(element) => Cow::Owned(element.text()),
+        }
+    }
 }
 
 /// An HTML element.
@@ -73,6 +81,11 @@ impl Element {
     /// Fetches the tag name.
     pub fn tag_name(&self) -> &str {
         &self.tag_name
+    }
+
+    /// The combined text under this tree.
+    pub fn text(&self) -> String {
+        self.children.iter().map(|c| c.text()).collect::<Vec<_>>().join(" ")
     }
 
     /// Whether this is a heading tag.

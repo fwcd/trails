@@ -70,8 +70,10 @@ struct RenderCursor {
 
 /// Internal state used during a DOM rendering pass.
 struct RenderCtx<'a, 'b, 'c, 'd> {
-    /// The paint context, if painting.
+    /// The paint context if painting (None if just layouting).
     paint: Option<&'a mut PaintCtx<'b, 'c, 'd>>,
+    /// Whether we are currently in a rendered part of the tree.
+    in_rendered_tree: bool,
     /// The clickable link areas.
     link_areas: LinkAreas,
     /// The paint state.
@@ -149,6 +151,7 @@ impl WebRenderer {
         let font_size = 12.0;
         RenderCtx {
             paint: params.paint,
+            in_rendered_tree: true,
             link_areas: LinkAreas {
                 areas: Vec::new()
             },
@@ -197,106 +200,144 @@ impl WebRenderer {
 
     /// Renders a single DOM element.
     fn render_element(&self, ctx: &mut RenderCtx, element: &Element) -> Size {
-        if RENDERED_TAGS.contains(element.tag_name()) {
-            let start_cursor = ctx.cursor.clone();
-            let mut size = Size::ZERO;
+        match element.tag_name() {
+            "title" => {
+                // Update window title if we have a paint context.
+                if let Some(paint) = &ctx.paint {
+                    let title = element.text();
+                    info!("Setting title to '{}'", title);
+                    paint.window().set_title(&title);
+                }
+                Size::ZERO
+            },
+            tag_name if ctx.in_rendered_tree && RENDERED_TAGS.contains(tag_name) => {
+                // Render the tag. To begin, we save the initial cursor state (which we
+                // will revert to later, the reason for not simply passing a cloned state
+                // to the child is that this plays better with the borrow checker).
+                let start_cursor = ctx.cursor.clone();
+                let mut size = Size::ZERO;
 
-            // Change styling info as needed
-            {
-                let mut styling = &mut ctx.cursor.styling;
-                match element.tag_name() {
-                    "b" | "strong" => styling.font_weight = FontWeight::BOLD,
-                    "h1" => styling.font_size = 32.0,
-                    "h2" => styling.font_size = 26.0,
-                    "h3" => styling.font_size = 22.0,
-                    "h4" => styling.font_size = 20.0,
-                    "a" => styling.color = Color::BLUE,
-                    _ => {},
+                // Change styling info as needed
+                {
+                    let mut styling = &mut ctx.cursor.styling;
+                    match element.tag_name() {
+                        "b" | "strong" => styling.font_weight = FontWeight::BOLD,
+                        "h1" => styling.font_size = 32.0,
+                        "h2" => styling.font_size = 26.0,
+                        "h3" => styling.font_size = 22.0,
+                        "h4" => styling.font_size = 20.0,
+                        "a" => styling.color = Color::BLUE,
+                        _ => {},
+                    }
+                    if element.is_heading() {
+                        styling.font_weight = FontWeight::BOLD;
+                    }
                 }
-                if element.is_heading() {
-                    styling.font_weight = FontWeight::BOLD;
-                }
-            }
 
-            // Render children
-            let mut line_size = Size::ZERO;
-            for child in element.children() {
-                // Check whether this is an inline tag
-                let is_inline = child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t));
-                // Render spacing if we have adjacent inline elements
-                if is_inline && line_size != Size::ZERO {
-                    ctx.cursor.point.x += ctx.cursor.styling.spacing;
+                // Update window title as needed
+                if element.tag_name() == "title" {
+                    
                 }
-                // Render the child element, which computes its size
-                let child_point = ctx.cursor.point;
-                let child_size = self.render_node(ctx, child);
-                // Insert links into the link target map.
-                match child {
-                    Node::Element(child_elem) if child_elem.tag_name() == "a" => {
-                        if let Some(href) = child_elem.attribute("href") {
-                            let child_rect = Rect::from_origin_size(child_point, child_size);
-                            ctx.link_areas.areas.push(LinkArea {
-                                area: child_rect,
-                                href: href.to_owned(),
-                            });
-                        }
-                    },
-                    _ => {},
+
+                // Render children
+                let mut line_size = Size::ZERO;
+                for child in element.children() {
+                    // Check whether this is an inline tag
+                    let is_inline = child.tag_name().map_or(true, |t| INLINE_TAGS.contains(t));
+                    // Render spacing if we have adjacent inline elements
+                    if is_inline && line_size != Size::ZERO {
+                        ctx.cursor.point.x += ctx.cursor.styling.spacing;
+                    }
+                    // Render the child element, which computes its size
+                    let child_point = ctx.cursor.point;
+                    let child_size = self.render_node(ctx, child);
+                    // Insert links into the link target map.
+                    match child {
+                        Node::Element(child_elem) if child_elem.tag_name() == "a" => {
+                            if let Some(href) = child_elem.attribute("href") {
+                                let child_rect = Rect::from_origin_size(child_point, child_size);
+                                ctx.link_areas.areas.push(LinkArea {
+                                    area: child_rect,
+                                    href: href.to_owned(),
+                                });
+                            }
+                        },
+                        _ => {},
+                    }
+                    // Depending on whether this is an inline tag and whether we are past the
+                    // container size we decide whether we should break the line.
+                    let relative_pos = ctx.cursor.point - ctx.cursor.base_point;
+                    let break_line = !is_inline || relative_pos.x + child_size.width >= ctx.cursor.base_size.width;
+                    if break_line {
+                        line_size.width = line_size.width.max(child_size.width);
+                        line_size.height = line_size.height.max(child_size.height);
+                        size.width = size.width.max(line_size.width);
+                        size.height += line_size.height;
+                        // Jump to next line
+                        ctx.cursor.point.x = ctx.cursor.base_point.x;
+                        ctx.cursor.point.y += line_size.height;
+                        line_size = Size::ZERO;
+                    } else {
+                        let width_delta = child_size.width;
+                        line_size.width += width_delta;
+                        line_size.height = line_size.height.max(child_size.height);
+                        // Move 'cursor' forward on this line
+                        ctx.cursor.point.x += width_delta;
+                    }
                 }
-                // Depending on whether this is an inline tag and whether we are past the
-                // container size we decide whether we should break the line.
-                let relative_pos = ctx.cursor.point - ctx.cursor.base_point;
-                let break_line = !is_inline || relative_pos.x + child_size.width >= ctx.cursor.base_size.width;
-                if break_line {
-                    line_size.width = line_size.width.max(child_size.width);
-                    line_size.height = line_size.height.max(child_size.height);
+                if line_size != Size::ZERO {
                     size.width = size.width.max(line_size.width);
                     size.height += line_size.height;
-                    // Jump to next line
-                    ctx.cursor.point.x = ctx.cursor.base_point.x;
-                    ctx.cursor.point.y += line_size.height;
-                    line_size = Size::ZERO;
-                } else {
-                    let width_delta = child_size.width;
-                    line_size.width += width_delta;
-                    line_size.height = line_size.height.max(child_size.height);
-                    // Move 'cursor' forward on this line
-                    ctx.cursor.point.x += width_delta;
                 }
-            }
-            if line_size != Size::ZERO {
-                size.width = size.width.max(line_size.width);
-                size.height += line_size.height;
-            }
 
-            ctx.cursor = start_cursor;
-            trace!("<{}> has size {}", element.tag_name(), size);
-            size
-        } else {
-            debug!("Not rendering <{}>", element.tag_name());
-            Size::ZERO
+                ctx.cursor = start_cursor;
+                trace!("<{}> has size {}", element.tag_name(), size);
+                size
+            },
+            tag_name => {
+                if ctx.in_rendered_tree {
+                    debug!("Not rendering <{}> (and its subtree)", tag_name);
+                }
+
+                let was_in_rendered_tree = ctx.in_rendered_tree;
+                ctx.in_rendered_tree = false;
+
+                // Traverse non-rendered childs (since they main contain relevant metadata, e.g. the window title).
+                for child in element.children() {
+                    self.render_node(ctx, child);
+                }
+
+                ctx.in_rendered_tree = was_in_rendered_tree;
+                Size::ZERO
+            }
         }
     }
 
     /// Renders some text from the DOM.
     fn render_text(&self, ctx: &mut RenderCtx, text: &str) -> Size {
-        let state = &ctx.cursor;
-        if let Some(paint) = &mut ctx.paint {
-            // We are painting
-            let layout = paint.text()
-                .new_text_layout(text.to_owned())
-                .font(FontFamily::SERIF, state.styling.font_size)
-                .default_attribute(state.styling.font_weight)
-                .text_color(state.styling.color.clone())
-                .build()
-                .expect("Could not construct text layout"); // TODO: Better error handling
-            paint.draw_text(&layout, state.point);
-            layout.size()
+        if ctx.in_rendered_tree {
+            let state = &ctx.cursor;
+            if let Some(paint) = &mut ctx.paint {
+                // We are painting
+                let layout = paint.text()
+                    .new_text_layout(text.to_owned())
+                    .font(FontFamily::SERIF, state.styling.font_size)
+                    .default_attribute(state.styling.font_weight)
+                    .text_color(state.styling.color.clone())
+                    .build()
+                    .expect("Could not construct text layout"); // TODO: Better error handling
+                paint.draw_text(&layout, state.point);
+                layout.size()
+            } else {
+                // We are just layouting
+                // TODO: Use a more accurate heuristic for determining the text size
+                let font_size = state.styling.font_size;
+                Size::new(text.len() as f64 * font_size * 0.45, font_size)
+            }
         } else {
-            // We are just layouting
-            // TODO: Use a more accurate heuristic for determining the text size
-            let font_size = state.styling.font_size;
-            Size::new(text.len() as f64 * font_size * 0.45, font_size)
+            // We skip this text node since we aren't in a rendered part of the tree
+            // This includes things like <script> or <style> content, etc.
+            Size::ZERO
         }
     }
 }
