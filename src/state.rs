@@ -41,7 +41,7 @@ impl AppState {
 
     /// Reloads the current page.
     pub fn reload(&mut self, services: &AppServices) -> Result<()> {
-        let url = self.url(services)?;
+        let url = self.url()?;
         self.open(url, services)
     }
 
@@ -87,7 +87,7 @@ impl AppState {
     }
 
     /// Fetches the currently visited url.
-    pub fn url(&self, services: &AppServices) -> Result<Url> {
+    pub fn url(&self) -> Result<Url> {
         Ok(Url::parse(&self.current_url)?)
     }
 

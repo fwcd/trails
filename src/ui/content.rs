@@ -30,7 +30,7 @@ impl Widget<AppState> for Content {
         // Visit link if clicked
         if let Some(href) = self.renderer.active_link() {
             data.perform(|data| {
-                let base_url = data.url(services)?;
+                let base_url = data.url()?;
                 let url = base_url.join(href)?;
                 data.visit_url(url, services)
             })
