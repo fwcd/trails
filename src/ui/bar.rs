@@ -13,10 +13,7 @@ pub fn bar_widget(services: Arc<AppServices>) -> impl Widget<AppState> {
     // (Re)loads the page
     let reload = move |data: &mut AppState| {
         data.perform(|data| {
-            let url = services.parse_bar_query(data.bar_query.as_str())?;
-            data.bar_query = url.to_string();
-            data.document = services.load_document(url)?;
-            Ok(())
+            data.reload(&services)
         })
     };
 

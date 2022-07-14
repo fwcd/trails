@@ -84,8 +84,8 @@ struct RenderCtx<'a, 'b, 'c, 'd> {
 pub struct WebRenderer {
     /// The clickable link areas from the last render.
     link_areas: Option<LinkAreas>,
-    /// Callback that takes a (possibly relative) URL to visit when a link is clicked.
-    visit_link_handler: Box<dyn Fn(&str)>,
+    /// Tracks a visit request after an event. The parent may or may not choose to honor this.
+    active_link: Option<String>,
 }
 
 static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
@@ -146,15 +146,7 @@ impl WebRenderer {
     pub fn new() -> Self {
         Self {
             link_areas: None,
-            visit_link_handler: Box::new(|_| {}),
-        }
-    }
-
-    /// A web renderer with a link handler attached.
-    pub fn on_visit_link(self, visit_link_handler: impl Fn(&str) + 'static) -> Self {
-        Self {
-            visit_link_handler: Box::new(visit_link_handler),
-            ..self
+            active_link: None,
         }
     }
 
@@ -179,6 +171,11 @@ impl WebRenderer {
                 },
             },
         }
+    }
+
+    /// The clicked link after an event.
+    pub fn active_link(&self) -> Option<&str> {
+        self.active_link.as_ref().map(|s| s.as_str())
     }
 
     /// Renders a DOM document.
@@ -351,6 +348,8 @@ impl WebRenderer {
 
 impl Widget<Document> for WebRenderer {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, document: &mut Document, _env: &Env) {
+        self.active_link = None;
+
         match event {
             Event::MouseUp(e) => {
                 let point = e.pos;
@@ -358,16 +357,7 @@ impl Widget<Document> for WebRenderer {
                 // Find the clicked link area
                 if let Some(area) = self.link_areas.as_ref().and_then(|l| l.areas.iter().find(|a| a.area.contains(point)).cloned()) {
                     info!("Clicked {:?}", area);
-
-                    (self.visit_link_handler)(area.href.as_str());
-
-                    // TODO: Move this snippet up the tree
-                    // // Resolve the (possibly relative) URL
-                    // if let Ok(url) = data.url().and_then(|base| Ok(base.join(&area.href)?)) {
-                    //     data.bar_query = Arc::new(url.to_string());
-                    //     data.perform(|data| data.reload());
-                    // }
-
+                    self.active_link = Some(area.href);
                     ctx.set_handled();
                 }
             },
@@ -378,7 +368,11 @@ impl Widget<Document> for WebRenderer {
     fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _document: &Document, _env: &Env) {
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_document: &Document, _document: &Document, _env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_document: &Document, document: &Document, _env: &Env) {
+        if old_document != document {
+            ctx.request_layout();
+            ctx.request_paint();
+        }
     }
 
     fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, document: &Document, _env: &Env) -> Size {
