@@ -139,7 +139,7 @@ impl Parser {
     }
 
     fn parse_document(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Document> {
-        let mut doc = Document::new();
+        let mut root = Element::root();
 
         if let HtmlToken::Doctype(_) = tokens.peek()? {
             // Ignore doctype for now
@@ -147,9 +147,9 @@ impl Parser {
         }
 
         // Parse <html> ... </html>
-        doc.root_mut().add_child(self.parse_node(tokens)?);
+        root.add_child(self.parse_node(tokens)?);
 
-        Ok(doc)
+        Ok(Document::from_root(root))
     }
 
     /// Parse an element or simply text (between tags).

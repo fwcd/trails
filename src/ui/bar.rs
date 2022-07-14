@@ -1,12 +1,25 @@
+use std::sync::Arc;
+
 use druid::{widget::{Flex, TextBox, Button}, Widget, WidgetExt, Insets};
 
-use crate::state::AppState;
+use crate::{state::AppState, services::AppServices};
 
 use super::{Submit, icon_button};
 
-pub fn bar_widget() -> impl Widget<AppState> {
+pub fn bar_widget(services: Arc<AppServices>) -> impl Widget<AppState> {
     let size = 28.0;
     let padding = 5.0;
+
+    // (Re)loads the page
+    let reload = move |data: &mut AppState| {
+        data.perform(|data| {
+            let url = services.parse_bar_query(data.bar_query.as_str())?;
+            data.bar_query = url.to_string();
+            data.document = services.load_document(url)?;
+            Ok(())
+        })
+    };
+
     Flex::row()
         .with_child(
             icon_button("\u{27e8}", 20.0) // Back (<)
@@ -29,15 +42,11 @@ pub fn bar_widget() -> impl Widget<AppState> {
                     .fix_height(size)
                     .padding(Insets::uniform_xy(padding, 0.0))
             )
-            .on_enter(|data: &mut AppState| data.perform(|data| {
-                data.reload()
-            }))
+            .on_enter(reload.clone())
         )
         .with_child(
             Button::new("Visit")
-                .on_click(|_ctx, data: &mut AppState, _env| data.perform(|data| {
-                    data.reload()
-                }))
+                .on_click(move |_ctx, data: &mut AppState, _env| reload(data))
                 .fix_height(size)
         )
         .padding(10.0)

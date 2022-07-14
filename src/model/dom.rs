@@ -1,27 +1,33 @@
-use std::{collections::HashMap, borrow::Cow};
+use std::{collections::HashMap, borrow::Cow, sync::Arc};
 
+use druid::Data;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// An HTML document.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Data)]
 pub struct Document {
-    root: Element,
+    /// The root element, wrapped in an Arc so we can implement `Data`.
+    root: Arc<Element>,
 }
 
 impl Document {
     /// Creates a new (empty) document.
     pub fn new() -> Self {
         Self {
-            root: Element::tag("$root")
+            root: Arc::new(Element::root()),
+        }
+    }
+
+    /// Creates a new document from the given element.
+    pub fn from_root(root: Element) -> Self {
+        Self {
+            root: Arc::new(root),
         }
     }
 
     /// The root node.
     pub fn root(&self) -> &Element { &self.root }
-
-    /// The root node, mutably.
-    pub fn root_mut(&mut self) -> &mut Element { &mut self.root }
 }
 
 /// A node in the DOM tree.
@@ -60,6 +66,11 @@ pub struct Element {
 static HEADING_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"h\d+").unwrap());
 
 impl Element {
+    /// Creates a new root element.
+    pub fn root() -> Self {
+        Self::tag("$root")
+    }
+
     /// Creates a new element with the given tag name, attributes and children.
     pub fn new(tag_name: &str, attributes: HashMap<String, String>, children: Vec<Node>) -> Self {
         Self {

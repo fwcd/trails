@@ -3,15 +3,16 @@ mod model;
 mod error;
 mod parse;
 mod network;
+mod services;
 mod state;
 mod ui;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use druid::{WindowDesc, AppLauncher};
 use log::LevelFilter;
-use network::Session;
-use parse::html;
+use model::dom::Document;
+use services::AppServices;
 use simple_logger::SimpleLogger;
 use state::AppState;
 use ui::app_widget;
@@ -19,15 +20,14 @@ use ui::app_widget;
 fn main() {
     SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-    let window = WindowDesc::new(app_widget())
+    let services = Arc::new(AppServices::new());
+    let window = WindowDesc::new(app_widget(&services))
         .title("Trails")
         .window_size((800.0, 600.0));
 
     let initial_state = AppState {
-        bar_query: Arc::new("https://en.wikipedia.org".to_owned()),
-        parser: Arc::new(html::Parser::default()),
-        session: Arc::new(Mutex::new(Session::default())),
-        document: None,
+        bar_query: "https://en.wikipedia.org".to_owned(),
+        document: Document::new(),
     };
 
     AppLauncher::with_window(window)

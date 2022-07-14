@@ -1,10 +1,10 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
 use log::{debug, trace, info};
 use once_cell::sync::Lazy;
 
-use crate::{state::AppState, model::dom::{Node, Element, Document}};
+use crate::model::dom::{Node, Element, Document};
 
 /// Styling info used during a DOM rendering pass.
 #[derive(Clone)] // TODO: Derive `Copy` once https://github.com/linebender/piet/pull/524 is merged
@@ -84,6 +84,8 @@ struct RenderCtx<'a, 'b, 'c, 'd> {
 pub struct WebRenderer {
     /// The clickable link areas from the last render.
     link_areas: Option<LinkAreas>,
+    /// Callback that takes a (possibly relative) URL to visit when a link is clicked.
+    visit_link_handler: Box<dyn Fn(&str)>,
 }
 
 static RENDERED_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
@@ -140,9 +142,19 @@ static INLINE_TAGS: Lazy<HashSet<&str>> = Lazy::new(|| {
 });
 
 impl WebRenderer {
+    /// Creates a new web rendering widget.
     pub fn new() -> Self {
         Self {
             link_areas: None,
+            visit_link_handler: Box::new(|_| {}),
+        }
+    }
+
+    /// A web renderer with a link handler attached.
+    pub fn on_visit_link(self, visit_link_handler: impl Fn(&str) + 'static) -> Self {
+        Self {
+            visit_link_handler: Box::new(visit_link_handler),
+            ..self
         }
     }
 
@@ -337,8 +349,8 @@ impl WebRenderer {
     }
 }
 
-impl Widget<AppState> for WebRenderer {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
+impl Widget<Document> for WebRenderer {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, document: &mut Document, _env: &Env) {
         match event {
             Event::MouseUp(e) => {
                 let point = e.pos;
@@ -347,11 +359,14 @@ impl Widget<AppState> for WebRenderer {
                 if let Some(area) = self.link_areas.as_ref().and_then(|l| l.areas.iter().find(|a| a.area.contains(point)).cloned()) {
                     info!("Clicked {:?}", area);
 
-                    // Resolve the (possibly relative) URL
-                    if let Ok(url) = data.url().and_then(|base| Ok(base.join(&area.href)?)) {
-                        data.bar_query = Arc::new(url.to_string());
-                        data.perform(|data| data.reload());
-                    }
+                    (self.visit_link_handler)(area.href.as_str());
+
+                    // TODO: Move this snippet up the tree
+                    // // Resolve the (possibly relative) URL
+                    // if let Ok(url) = data.url().and_then(|base| Ok(base.join(&area.href)?)) {
+                    //     data.bar_query = Arc::new(url.to_string());
+                    //     data.perform(|data| data.reload());
+                    // }
 
                     ctx.set_handled();
                 }
@@ -360,50 +375,37 @@ impl Widget<AppState> for WebRenderer {
         }
     }
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) {
-        
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _document: &Document, _env: &Env) {
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, _env: &Env) {
-        // TODO: Is this comparison inefficient? Would Arc::ptr_eq be sufficient since we never
-        //       mutate within the Arc (probably 'unsafe' in the sense that it wouldn't trigger
-        //       repaints if we don't uphold this invariant). Should we perhaps store an
-        //       (e.g. randomly-generated) version identifier or a hash in the document?
-        if old_data.document != data.document {
-            ctx.request_layout();
-            ctx.request_paint();
-        }
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_document: &Document, _document: &Document, _env: &Env) {
     }
 
-    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, _env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, document: &Document, _env: &Env) -> Size {
         let min_size = bc.min();
-        if let Some(document) = &data.document {
-            // Perform a render pass without a paint context to determine the document's size
-            let result = self.render_document(RenderParams {
-                paint: None,
-                base_size: min_size,
-            }, &*document);
-            debug!("Document size: {}", result.size);
-            Size::new(
-                min_size.width.max(result.size.width),
-                min_size.height.max(result.size.height),
-            )
-        } else {
-            min_size
-        }
+
+        // Perform a render pass without a paint context to determine the document's size
+        let result = self.render_document(RenderParams {
+            paint: None,
+            base_size: min_size,
+        }, document);
+
+        debug!("Document size: {}", result.size);
+        Size::new(
+            min_size.width.max(result.size.width),
+            min_size.height.max(result.size.height),
+        )
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
-        if let Some(document) = &data.document {
-            let size = ctx.size();
+    fn paint(&mut self, ctx: &mut PaintCtx, document: &Document, _env: &Env) {
+        let size = ctx.size();
 
-            // Perform a render pass over the document
-            let result = self.render_document(RenderParams {
-                paint: Some(ctx),
-                base_size: size,
-            }, &*document);
+        // Perform a render pass over the document
+        let result = self.render_document(RenderParams {
+            paint: Some(ctx),
+            base_size: size,
+        }, document);
 
-            self.link_areas = Some(result.link_areas);
-        }
+        self.link_areas = Some(result.link_areas);
     }
 }
