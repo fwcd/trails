@@ -1,19 +1,28 @@
 use std::sync::Arc;
 
-use druid::{widget::{Flex, TextBox, Button}, Widget, WidgetExt, Insets};
+use druid::{widget::{Flex, TextBox, Button}, Widget, WidgetExt, Insets, EventCtx, Env};
 
 use crate::{state::AppState, services::AppServices};
 
 use super::{Submit, icon_button};
 
-pub fn bar_widget(services: Arc<AppServices>) -> impl Widget<AppState> {
+pub fn bar_widget(services: &Arc<AppServices>) -> impl Widget<AppState> {
     let size = 28.0;
     let padding = 5.0;
 
-    // (Re)loads the page
+    // Reloading closures for different handlers
+
+    let services_reload = services.clone();
     let reload = move |data: &mut AppState| {
         data.perform(|data| {
-            data.reload(&services)
+            data.reload(&services_reload)
+        })
+    };
+
+    let services_reload_by_button = services.clone();
+    let reload_by_button = move |_ctx: &mut EventCtx, data: &mut AppState, _env: &Env| {
+        data.perform(|data| {
+            data.reload(&services_reload_by_button)
         })
     };
 
@@ -29,6 +38,7 @@ pub fn bar_widget(services: Arc<AppServices>) -> impl Widget<AppState> {
         .with_child(
             icon_button("\u{27F3}", 24.0) // Reload
                 .fix_size(size, size)
+                .on_click(reload_by_button.clone())
         )
         .with_child(
             Submit::new(
@@ -39,11 +49,11 @@ pub fn bar_widget(services: Arc<AppServices>) -> impl Widget<AppState> {
                     .fix_height(size)
                     .padding(Insets::uniform_xy(padding, 0.0))
             )
-            .on_enter(reload.clone())
+            .on_enter(reload)
         )
         .with_child(
             Button::new("Visit")
-                .on_click(move |_ctx, data: &mut AppState, _env| reload(data))
+                .on_click(reload_by_button)
                 .fix_height(size)
         )
         .padding(10.0)

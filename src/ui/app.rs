@@ -8,7 +8,7 @@ use super::{bar_widget, content_widget, Tighten};
 pub fn app_widget(services: &Arc<AppServices>) -> impl Widget<AppState> {
     Flex::column()
         // Address bar
-        .with_child(bar_widget(services.clone()))
+        .with_child(bar_widget(services))
         // Content
         .with_flex_child(
             Tighten::new(

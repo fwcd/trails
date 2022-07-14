@@ -347,7 +347,7 @@ impl WebRenderer {
 }
 
 impl Widget<Document> for WebRenderer {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, document: &mut Document, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _document: &mut Document, _env: &Env) {
         self.active_link = None;
 
         match event {
