@@ -31,7 +31,9 @@ impl AppServices {
 
     /// Parses an address-bar query to a URL.
     pub fn parse_bar_query(&self, query: &str) -> Result<Url> {
-        let url_result = if SEARCH_QUERY.is_match(query) {
+        let url_result = if query.is_empty() {
+            Url::parse("about:blank")
+        } else if SEARCH_QUERY.is_match(query) {
             Url::parse_with_params("https://www.google.com/search", &[("q", query)])
         } else {
             Url::parse(query)
