@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use druid::{WindowDesc, AppLauncher};
 use log::LevelFilter;
-use model::dom::Document;
 use services::AppServices;
 use simple_logger::SimpleLogger;
 use state::AppState;
@@ -23,11 +22,8 @@ fn main() {
 
     // Bootstrap services and state
     let services = Arc::new(AppServices::new());
-    let mut initial_state = AppState {
-        bar_query: "about:blank".to_owned(),
-        document: Document::new(),
-    };
-    initial_state.perform(|data| data.reload(&services));
+    let mut state = AppState::new();
+    state.perform(|data| data.reload(&services));
 
     // Create window
     let window = WindowDesc::new(app_widget(&services))
@@ -36,6 +32,6 @@ fn main() {
 
     // Launch app
     AppLauncher::with_window(window)
-        .launch(initial_state)
+        .launch(state)
         .expect("Failed to launch app");
 }

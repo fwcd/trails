@@ -32,7 +32,7 @@ impl Widget<AppState> for Content {
             data.perform(|data| {
                 let base_url = data.url(services)?;
                 let url = base_url.join(href)?;
-                data.visit(url, services)
+                data.visit_url(url, services)
             })
         }
     }
