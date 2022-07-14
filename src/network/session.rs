@@ -1,5 +1,6 @@
 use std::fs;
 
+use indoc::indoc;
 use log::info;
 use reqwest::{blocking::Client, header::USER_AGENT};
 use url::Url;
@@ -42,6 +43,17 @@ impl Session {
                 println!("{}", url.path());
                 let contents = fs::read(url.path())?;
                 Ok(contents)
+            },
+            "about" => {
+                // Return an empty document
+                Ok(indoc! {"
+                    <html>
+                        <head>
+                            <title>Trails</title>
+                        </head>
+                        <body></body>
+                    </html>
+                "}.as_bytes().into_iter().cloned().collect())
             },
             scheme => Err(Error::UnsupportedScheme(scheme.to_owned())),
         }

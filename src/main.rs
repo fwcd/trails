@@ -18,18 +18,23 @@ use state::AppState;
 use ui::app_widget;
 
 fn main() {
+    // Bootstrap logging
     SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
+    // Bootstrap services and state
     let services = Arc::new(AppServices::new());
+    let mut initial_state = AppState {
+        bar_query: "about:blank".to_owned(),
+        document: Document::new(),
+    };
+    initial_state.perform(|data| data.reload(&services));
+
+    // Create window
     let window = WindowDesc::new(app_widget(&services))
         .title("Trails")
         .window_size((800.0, 600.0));
 
-    let initial_state = AppState {
-        bar_query: "https://en.wikipedia.org".to_owned(),
-        document: Document::new(),
-    };
-
+    // Launch app
     AppLauncher::with_window(window)
         .launch(initial_state)
         .expect("Failed to launch app");
