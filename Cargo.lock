@@ -271,7 +271,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/linebender/druid.git?rev=380f1c5#380f1c5320f0c3742461cc98e78791b5c2c7ece4"
+source = "git+https://github.com/linebender/druid.git?rev=20beabe#20beabe1551396b572614182cd6b889eeac7bacd"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -293,7 +293,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/linebender/druid.git?rev=380f1c5#380f1c5320f0c3742461cc98e78791b5c2c7ece4"
+source = "git+https://github.com/linebender/druid.git?rev=20beabe#20beabe1551396b572614182cd6b889eeac7bacd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -303,7 +303,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/linebender/druid.git?rev=380f1c5#380f1c5320f0c3742461cc98e78791b5c2c7ece4"
+source = "git+https://github.com/linebender/druid.git?rev=20beabe#20beabe1551396b572614182cd6b889eeac7bacd"
 dependencies = [
  "anyhow",
  "bitflags",
