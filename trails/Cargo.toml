@@ -1,7 +1,7 @@
 [package]
 name = "trails"
 description = "Experimental web browser written from scratch"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 categories = ["web-programming::http-client", "parser-implementations"]
 repository = "https://github.com/fwcd/trails"
