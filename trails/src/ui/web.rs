@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx};
+use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, piet::NullRenderContext, RenderContext};
 use trails_base::log::{debug, info};
 use trails_model::dom::Document;
-use trails_render::web::{LinkAreas, Renderer, RenderParams};
+use trails_render::web::{LinkAreas, RenderParams, Renderer};
 
 pub struct WebRenderer {
-    /// The main rendering engine.
-    renderer: Renderer,
     /// The clickable link areas from the last render.
     link_areas: Option<LinkAreas>,
     /// Tracks a visit request after an event. The parent may or may not choose to honor this.
@@ -17,10 +15,14 @@ pub struct WebRenderer {
 impl WebRenderer {
     pub fn new() -> Self {
         Self {
-            renderer: Renderer::default(),
             link_areas: None,
             active_link: None,
         }
+    }
+
+    /// Creates a new renderer.
+    pub fn make_renderer<P>(&self) -> Renderer<P> where P: RenderContext {
+        Renderer::default()
     }
 
     /// The clicked link after an event.
@@ -62,10 +64,11 @@ impl Widget<Arc<Document>> for WebRenderer {
         let min_size = bc.min();
 
         // Perform a render pass without a paint context to determine the document's size
-        let result = self.renderer.render_document(RenderParams {
+        let params = RenderParams::<NullRenderContext> {
             paint: None,
-            base_size: min_size,
-        }, document);
+            base_size: min_size
+        };
+        let result = Renderer::default().render_document(params, document);
 
         debug!("Document size: {}", result.size);
         Size::new(
@@ -78,10 +81,11 @@ impl Widget<Arc<Document>> for WebRenderer {
         let size = ctx.size();
 
         // Perform a render pass over the document
-        let result = self.renderer.render_document(RenderParams {
-            paint: Some(ctx),
+        let params = RenderParams {
+            paint: Some(&mut **ctx),
             base_size: size,
-        }, document);
+        };
+        let result = self.make_renderer().render_document(params, document);
 
         self.link_areas = Some(result.link_areas);
     }

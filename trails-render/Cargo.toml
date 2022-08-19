@@ -7,4 +7,3 @@ edition = "2021"
 trails-base = { path = "../trails-base" }
 trails-model = { path = "../trails-model" }
 piet = "0.5"
-piet-common = "0.5"

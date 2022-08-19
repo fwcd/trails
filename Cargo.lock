@@ -1865,7 +1865,6 @@ name = "trails-render"
 version = "0.0.2"
 dependencies = [
  "piet",
- "piet-common",
  "trails-base",
  "trails-model",
 ]

@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, marker::PhantomData};
 
-use piet::{FontWeight, Color, kurbo::{Point, Rect, Size}, FontFamily, RenderContext, Text, TextLayoutBuilder, TextLayout};
-use piet_common::Piet;
+use piet::{FontWeight, Color, kurbo::{Point, Rect, Size}, FontFamily, RenderContext, Text, TextLayoutBuilder, TextLayout, NullRenderContext};
 use trails_base::log::{trace, debug};
 use trails_model::dom::{Node, Element, Document};
 
@@ -21,9 +20,9 @@ pub struct Styling {
 }
 
 /// Parameters to pass to the (top-level) renderer.
-pub struct RenderParams<'a, 'b> {
+pub struct RenderParams<'a, P = NullRenderContext> {
     /// The paint context, if painting.
-    pub paint: Option<&'a mut Piet<'b>>,
+    pub paint: Option<&'a mut P>,
     /// The size of the viewport.
     pub base_size: Size,
 }
@@ -72,9 +71,9 @@ pub struct RenderCursor {
 }
 
 /// Internal state used during a DOM rendering pass.
-pub struct RenderCtx<'a, 'b> {
-    /// The paint context if painting (None if just layouting).
-    paint: Option<&'a mut Piet<'b>>,
+pub struct RenderCtx<'a, P = NullRenderContext> {
+    /// The paint context if painting.
+    paint: Option<&'a mut P>,
     /// Whether we are currently in a rendered part of the tree.
     in_rendered_tree: bool,
     /// The clickable link areas.
@@ -86,22 +85,26 @@ pub struct RenderCtx<'a, 'b> {
 }
 
 /// The main web rendering engine.
-pub struct Renderer;
+pub struct Renderer<P = NullRenderContext> {
+    phantom: PhantomData<P>,
+}
 
-impl Default for Renderer {
+impl<P> Default for Renderer<P> where P: RenderContext {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Renderer {
+impl<P> Renderer<P> where P: RenderContext {
     /// Creates a new web rendering widget.
     pub fn new() -> Self {
-        Self
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     /// Creates a new render context with the default settings.
-    pub fn make_render_ctx<'a, 'b>(&'a self, params: RenderParams<'a, 'b>) -> RenderCtx<'a, 'b> {
+    pub fn make_render_ctx<'a, 'b>(&'a self, params: RenderParams<'a, P>) -> RenderCtx<'a, P> {
         let font_size = 12.0;
         RenderCtx {
             paint: params.paint,
@@ -125,7 +128,7 @@ impl Renderer {
     }
 
     /// Renders a DOM document.
-    pub fn render_document(&self, params: RenderParams, document: &Arc<Document>) -> RenderResult {
+    pub fn render_document(&self, params: RenderParams<P>, document: &Arc<Document>) -> RenderResult {
         // Create a rendering context.
         let size = params.base_size;
         let mut ctx = self.make_render_ctx(params);
@@ -147,7 +150,7 @@ impl Renderer {
     }
 
     /// Renders a single DOM node.
-    fn render_node(&self, ctx: &mut RenderCtx, node: &Node) -> Size {
+    fn render_node(&self, ctx: &mut RenderCtx<P>, node: &Node) -> Size {
         match node {
             Node::Element(element) => self.render_element(ctx, element),
             Node::Text(text) => self.render_text(ctx, text),
@@ -155,7 +158,7 @@ impl Renderer {
     }
 
     /// Renders a single DOM element.
-    fn render_element(&self, ctx: &mut RenderCtx, element: &Element) -> Size {
+    fn render_element(&self, ctx: &mut RenderCtx<P>, element: &Element) -> Size {
         match element.tag_name() {
             "title" => {
                 // Update window title if we have a paint context.
@@ -262,7 +265,7 @@ impl Renderer {
     }
 
     /// Renders some text from the DOM.
-    fn render_text(&self, ctx: &mut RenderCtx, text: &str) -> Size {
+    fn render_text(&self, ctx: &mut RenderCtx<P>, text: &str) -> Size {
         if ctx.in_rendered_tree {
             let state = &ctx.cursor;
             if let Some(paint) = &mut ctx.paint {
