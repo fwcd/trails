@@ -1,0 +1,10 @@
+[package]
+name = "trails-render"
+version = "0.0.2"
+edition = "2021"
+
+[dependencies]
+trails-base = { path = "../trails-base" }
+trails-model = { path = "../trails-model" }
+piet = "0.5"
+piet-common = "0.5"

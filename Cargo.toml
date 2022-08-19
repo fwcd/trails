@@ -4,5 +4,6 @@ members = [
     "trails-base",
     "trails-model",
     "trails-network",
+    "trails-render",
 ]
 default-members = ["trails"]

@@ -13,5 +13,6 @@ license = "GPL-3.0"
 trails-base = { path = "../trails-base" }
 trails-model = { path = "../trails-model" }
 trails-network = { path = "../trails-network" }
+trails-render = { path = "../trails-render" }
 druid = { git = "https://github.com/linebender/druid.git", rev = "20beabe", features = ["default", "im"] }
 simple_logger = "2.2"
