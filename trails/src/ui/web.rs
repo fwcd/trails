@@ -82,6 +82,13 @@ impl Widget<Arc<Document>> for WebRenderer {
         };
         let result = Renderer::new(params).render_document(document);
 
+        // Update found link areas
         self.link_areas = Some(result.link_areas);
+
+        // Update window title if needed
+        if let Some(title) = result.title {
+            info!("Setting title to '{}'", &title);
+            ctx.window().set_title(&title);
+        }
     }
 }
