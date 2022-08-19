@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, piet::NullRenderContext, RenderContext};
+use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, piet::NullRenderContext};
 use trails_base::log::{debug, info};
 use trails_model::dom::Document;
 use trails_render::web::{LinkAreas, RenderParams, Renderer};
@@ -18,11 +18,6 @@ impl WebRenderer {
             link_areas: None,
             active_link: None,
         }
-    }
-
-    /// Creates a new renderer.
-    pub fn make_renderer<P>(&self) -> Renderer<P> where P: RenderContext {
-        Renderer::default()
     }
 
     /// The clicked link after an event.
@@ -68,7 +63,7 @@ impl Widget<Arc<Document>> for WebRenderer {
             paint: None,
             base_size: min_size
         };
-        let result = Renderer::default().render_document(params, document);
+        let result = Renderer::new(params).render_document(document);
 
         debug!("Document size: {}", result.size);
         Size::new(
@@ -85,7 +80,7 @@ impl Widget<Arc<Document>> for WebRenderer {
             paint: Some(&mut **ctx),
             base_size: size,
         };
-        let result = self.make_renderer().render_document(params, document);
+        let result = Renderer::new(params).render_document(document);
 
         self.link_areas = Some(result.link_areas);
     }
