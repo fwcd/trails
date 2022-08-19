@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use trails_base::log::warn;
+use trails_base::log::{warn, debug};
 use trails_base::once_cell::sync::Lazy;
 use trails_base::regex::Regex;
 use trails_base::{Result, bail};
@@ -72,9 +72,10 @@ fn lex_document(raw: &str) -> Vec<HtmlToken> {
 
         if let Some(doctype) = raw_token.name("doctype") {
             tokens.push(HtmlToken::Doctype(doctype.as_str().to_owned()));
-        } else if let Some(_comment) = raw_token.name("comment") {
+        } else if let Some(comment) = raw_token.name("comment") {
             // TODO: Track comments (for now it's more convenient to ignore them)
             // tokens.push(HtmlToken::Comment(comment.as_str().to_owned()));
+            debug!("Skipping comment '{}'", comment.as_str());
         } else if let Some(script) = raw_token.name("script").map(|m| m.as_str().to_owned()) {
             tokens.push(HtmlToken::Script(script));
         } else if let Some(style) = raw_token.name("style").map(|m| m.as_str().to_owned()) {
