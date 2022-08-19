@@ -2,9 +2,8 @@
 
 use std::{vec::IntoIter, iter::Peekable, fmt::Debug};
 
-use log::debug;
-
-use crate::error::{Result, Error};
+use trails_base::log::debug;
+use trails_base::{Result, bail};
 
 /// A wrapper around a mutable position and a token vector for convenient
 /// recursive descent parsing.
@@ -25,7 +24,7 @@ impl<T> Tokens<T> where T: Debug {
             debug!("Consuming {:?}", token);
             Ok(token)
         } else {
-            Err(Error::Eof)
+            bail!("Cannot consume beyond eof")
         }
     }
 
@@ -34,7 +33,7 @@ impl<T> Tokens<T> where T: Debug {
         if let Some(token) = self.tokens.peek() {
             Ok(token)
         } else {
-            Err(Error::Eof)
+            bail!("Cannot peek beyond eof")
         }
     }
 }
@@ -46,7 +45,7 @@ impl<T> Tokens<T> where T: Eq + Debug {
         if &token == expected {
             Ok(())
         } else {
-            Err(Error::UnexpectedToken(format!("Expected {:?}, but was {:?}", expected, token)))
+            bail!("Expected {:?}, but was {:?}", expected, token)
         }
     }
 

@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use log::warn;
-use once_cell::sync::Lazy;
-use regex::Regex;
+use trails_base::log::warn;
+use trails_base::once_cell::sync::Lazy;
+use trails_base::regex::Regex;
+use trails_base::{Result, bail};
 
-use crate::{model::dom::{Document, Node, Element}, error::{Result, Error}};
+use crate::{dom::{Document, Node, Element}};
 
 use super::tokens::Tokens;
 
@@ -192,7 +193,7 @@ impl Parser {
                         if tag_name == opening.tag_name {
                             break
                         } else {
-                            return Err(Error::UnexpectedToken(format!("Expected </{}>, but was </{}>", opening.tag_name, tag_name)));
+                            bail!("Expected </{}>, but was </{}>", opening.tag_name, tag_name);
                         }
                     },
                     _ => {
@@ -210,7 +211,7 @@ impl Parser {
     fn parse_opening(&self, tokens: &mut Tokens<HtmlToken>) -> Result<Opening> {
         match tokens.next()? {
             HtmlToken::Opening { tag_name, attributes, self_closing } => Ok(Opening { tag_name, attributes, self_closing }),
-            token => Err(Error::UnexpectedToken(format!("Expected tag name but got {:?}", token))),
+            token => bail!(format!("Expected tag name but got {:?}", token)),
         }
     }
 }

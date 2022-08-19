@@ -1,10 +1,9 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use druid::{Widget, Size, Env, BoxConstraints, LifeCycle, Event, PaintCtx, LayoutCtx, UpdateCtx, LifeCycleCtx, EventCtx, RenderContext, Rect, Color, Point, piet::{Text, TextLayoutBuilder, TextLayout}, FontFamily, FontWeight};
-use log::{debug, trace, info};
-use once_cell::sync::Lazy;
-
-use crate::model::dom::{Node, Element, Document};
+use trails_base::log::{debug, trace, info};
+use trails_base::once_cell::sync::Lazy;
+use trails_model::dom::{Node, Element, Document};
 
 /// Styling info used during a DOM rendering pass.
 #[derive(Clone)] // TODO: Derive `Copy` once https://github.com/linebender/piet/pull/524 is merged
@@ -179,7 +178,7 @@ impl WebRenderer {
     }
 
     /// Renders a DOM document.
-    fn render_document(&self, params: RenderParams, document: &Document) -> RenderResult {
+    fn render_document(&self, params: RenderParams, document: &Arc<Document>) -> RenderResult {
         // Create a rendering context.
         let mut ctx = self.make_render_ctx(params);
 
@@ -346,8 +345,8 @@ impl WebRenderer {
     }
 }
 
-impl Widget<Document> for WebRenderer {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _document: &mut Document, _env: &Env) {
+impl Widget<Arc<Document>> for WebRenderer {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _document: &mut Arc<Document>, _env: &Env) {
         self.active_link = None;
 
         match event {
@@ -365,17 +364,17 @@ impl Widget<Document> for WebRenderer {
         }
     }
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _document: &Document, _env: &Env) {
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _document: &Arc<Document>, _env: &Env) {
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_document: &Document, document: &Document, _env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_document: &Arc<Document>, document: &Arc<Document>, _env: &Env) {
         if old_document != document {
             ctx.request_layout();
             ctx.request_paint();
         }
     }
 
-    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, document: &Document, _env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, document: &Arc<Document>, _env: &Env) -> Size {
         let min_size = bc.min();
 
         // Perform a render pass without a paint context to determine the document's size
@@ -391,7 +390,7 @@ impl Widget<Document> for WebRenderer {
         )
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, document: &Document, _env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, document: &Arc<Document>, _env: &Env) {
         let size = ctx.size();
 
         // Perform a render pass over the document

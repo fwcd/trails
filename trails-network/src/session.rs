@@ -1,11 +1,10 @@
 use std::fs;
 
-use indoc::indoc;
-use log::info;
+use trails_base::indoc::indoc;
+use trails_base::log::info;
+use trails_base::{VERSION, Result, bail};
 use reqwest::{blocking::Client, header::USER_AGENT};
 use url::Url;
-
-use crate::{constants::VERSION, error::{Result, Error}};
 
 /// A facility for performing HTTP requests that may hold state
 /// (e.g. cookies).
@@ -55,7 +54,7 @@ impl Session {
                     </html>
                 "}.as_bytes().into_iter().cloned().collect())
             },
-            scheme => Err(Error::UnsupportedScheme(scheme.to_owned())),
+            scheme => bail!("Unsupported scheme: {}", scheme),
         }
     }
 

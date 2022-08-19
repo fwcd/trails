@@ -1,16 +1,11 @@
-mod constants;
-mod model;
-mod error;
-mod parse;
-mod network;
 mod services;
 mod state;
 mod ui;
 
-use std::sync::Arc;
-
 use druid::{WindowDesc, AppLauncher};
-use log::LevelFilter;
+use std::sync::Arc;
+use trails_base::log::LevelFilter;
+
 use services::AppServices;
 use simple_logger::SimpleLogger;
 use state::AppState;

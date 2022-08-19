@@ -1,10 +1,11 @@
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
-use regex::Regex;
-use reqwest::Url;
-
-use crate::{parse::html, network::Session, model::dom::Document, error::Result};
+use trails_base::Result;
+use trails_base::once_cell::sync::Lazy;
+use trails_base::regex::Regex;
+use trails_model::dom::Document;
+use trails_model::parse::html;
+use trails_network::{url::{self, Url}, Session};
 
 static SEARCH_QUERY: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[^\s\.:\[\]]+(?:\s+\S.*)?$").unwrap());
 

@@ -1,20 +1,8 @@
-[package]
-name = "trails"
-description = "Experimental web browser written from scratch"
-version = "0.0.1"
-edition = "2021"
-categories = ["web-programming::http-client", "parser-implementations"]
-repository = "https://github.com/fwcd/trails"
-license = "GPL-3.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-druid = { git = "https://github.com/linebender/druid.git", rev = "20beabe", features = ["default", "im"] }
-regex = "1"
-once_cell = "1.13"
-log = "0.4"
-url = "2.2"
-simple_logger = "2.2"
-indoc = "1.0"
-reqwest = { version = "0.11", features = ["blocking"] }
+[workspace]
+members = [
+    "trails",
+    "trails-base",
+    "trails-model",
+    "trails-network",
+]
+default-members = ["trails"]

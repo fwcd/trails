@@ -1826,12 +1826,36 @@ name = "trails"
 version = "0.0.1"
 dependencies = [
  "druid",
+ "simple_logger",
+ "trails-base",
+ "trails-model",
+ "trails-network",
+]
+
+[[package]]
+name = "trails-base"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
  "indoc",
  "log",
  "once_cell",
  "regex",
+]
+
+[[package]]
+name = "trails-model"
+version = "0.0.1"
+dependencies = [
+ "trails-base",
+]
+
+[[package]]
+name = "trails-network"
+version = "0.0.1"
+dependencies = [
  "reqwest",
- "simple_logger",
+ "trails-base",
  "url",
 ]
 

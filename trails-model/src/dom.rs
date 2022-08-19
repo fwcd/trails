@@ -1,28 +1,26 @@
-use std::{collections::HashMap, borrow::Cow, sync::Arc};
+use std::{collections::HashMap, borrow::Cow};
 
-use druid::Data;
-use once_cell::sync::Lazy;
-use regex::Regex;
+use trails_base::once_cell::sync::Lazy;
+use trails_base::regex::Regex;
 
 /// An HTML document.
-#[derive(Clone, PartialEq, Eq, Debug, Data)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Document {
-    /// The root element, wrapped in an Arc so we can implement `Data`.
-    root: Arc<Element>,
+    root: Element,
 }
 
 impl Document {
     /// Creates a new (empty) document.
     pub fn new() -> Self {
         Self {
-            root: Arc::new(Element::root()),
+            root: Element::root(),
         }
     }
 
     /// Creates a new document from the given element.
     pub fn from_root(root: Element) -> Self {
         Self {
-            root: Arc::new(root),
+            root,
         }
     }
 

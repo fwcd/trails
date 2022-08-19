@@ -1,12 +1,17 @@
-use crate::{model::dom::Document, error::Result, services::AppServices};
+use std::sync::Arc;
+
 use druid::{Data, Lens, im};
-use log::error;
-use reqwest::Url;
+use trails_base::log::error;
+use trails_base::Result;
+use trails_model::dom::Document;
+use trails_network::url::Url;
+
+use crate::services::AppServices;
 
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
     pub bar_query: String,
-    pub document: Document,
+    pub document: Arc<Document>,
     pub current_url: String,
     pub history: im::Vector<String>,
     pub forward_history: im::Vector<String>,
@@ -19,7 +24,7 @@ impl AppState {
         Self {
             bar_query: start_page.to_owned(),
             current_url: start_page.to_owned(),
-            document: Document::new(),
+            document: Arc::new(Document::new()),
             history: im::Vector::new(),
             forward_history: im::Vector::new(),
         }
@@ -49,7 +54,7 @@ impl AppState {
     fn open(&mut self, url: Url, services: &AppServices) -> Result<()> {
         let url_string = url.to_string();
         self.bar_query = url_string.clone();
-        self.document = services.load_document(url)?;
+        self.document = Arc::new(services.load_document(url)?);
         self.current_url = url_string;
         Ok(())
     }
